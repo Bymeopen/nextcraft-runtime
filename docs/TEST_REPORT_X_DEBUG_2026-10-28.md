@@ -182,3 +182,24 @@ Probe sementara (dihapus, tidak di-commit) memastikan temuan E:
 - Byte tambahan setelah chunk terakhir diterima begitu saja (data tetap terbaca utuh).
 - File terpotong di tengah chunk memunculkan `EOFException`, bukan `WrongPasswordException`.
 Keduanya belum diperbaiki dan tidak dikunci oleh tes permanen.
+
+---
+
+## Perbaikan temuan E (`BackupCrypto.decrypt`)
+
+Temuan E (INFO) pada audit: byte tambahan setelah chunk terakhir diterima begitu saja, dan file yang terpotong di tengah chunk memunculkan `EOFException` (UI menampilkan pesan umum), bukan `WrongPasswordException`. Status sekarang: DIPERBAIKI.
+
+Perubahan di `app/src/main/java/com/nextcraft/forge/data/BackupCrypto.kt` (`decrypt`, fungsi `next()`):
+- Pembacaan isi chunk dibungkus `try/catch EOFException` → `WrongPasswordException` (pemotongan di tengah chunk kini dinilai sama dengan pemotongan di antara chunk).
+- Setelah chunk terakhir berhasil dibuka (`done`), jika masih ada byte di aliran (`data.read() != -1`) → `WrongPasswordException`. Ini juga menolak backup kedua yang disambung di belakang backup pertama.
+
+Tes baru di `BackupCryptoTest` (kini 14 tes):
+- `bytesAfterTheFinalChunkAreRejected` — 7 byte tambahan, dan backup kedua yang disambung.
+- `truncationInsideAChunkOrItsLengthIsWrongPassword` — terpotong di dalam ciphertext, di dalam 4 byte panjang, dan hanya header.
+
+Verifikasi: `gradle :app:testDebugUnitTest --offline` → exit 0; `BackupCryptoTest` 14/14; seluruh suite 374 tes, 0 gagal, 0 error, 1 dilewati. Tes round-trip lama (multi-chunk, kosong, tepat satu chunk) tetap lulus, jadi backup yang sah tidak ditolak.
+
+Batasan yang diketahui:
+- Pemotongan di dalam 33 byte header (sebelum salt/nonce lengkap) masih memunculkan `EOFException`; tidak diubah.
+- Panjang chunk yang diubah di luar rentang 16..(1 MiB+16) tetap `IllegalArgumentException("Damaged backup")`; ini disengaja karena pesannya informatif.
+- Perubahan ini hanya diuji di tingkat `BackupCrypto` (JVM). Alur restore lewat UI (`BackupManager` + pemilih berkas) belum diuji di perangkat.
