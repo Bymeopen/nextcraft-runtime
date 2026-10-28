@@ -248,3 +248,23 @@ Verifikasi:
 Belum diperbaiki dari temuan UX sebelumnya: pesan hasil muncul di dasar layar yang panjang (LOW), dan jumlah file backup (33) berbeda satu dari restore (34) (INFO). Terjemahan kelima bahasa selain Inggris dan Indonesia untuk "Password" saya tulis sendiri dan belum ditinjau penutur asli; hanya Indonesia dan Inggris yang tampil di layar saat uji.
 
 Pembersihan: berkas backup uji di `Download` dan berkas sementara di `/data/local/tmp` dihapus.
+
+---
+
+## Perbaikan dua temuan UX sisa (pesan hasil dan jumlah file)
+
+1. Pesan hasil di dasar layar (LOW) — `ui/BackupScreen.kt`: pesan dan tombol "Mulai ulang sekarang" kini dibungkus `Column` dengan `BringIntoViewRequester`; sebuah `LaunchedEffect(backup)` menunggu satu frame (`withFrameNanos`) lalu memanggil `bringIntoView()` bila ada pesan atau `restartNeeded`. Layar menggulir sendiri ke hasil tanpa mengubah API `ToolScaffold`.
+2. Jumlah file berbeda satu (INFO) — `data/BackupManager.kt` (`restore`): manifest `nextcraft-backup.json` tidak lagi dihitung sebagai berkas; penghitung `entries` terpisah tetap dipakai untuk batas `MAX_RESTORE_FILES`, sehingga batas keamanan tidak melonggar.
+
+Verifikasi:
+- `gradle :app:testDebugUnitTest --offline` → exit 0; 374 tes, 0 gagal, 0 error, 1 dilewati.
+- `gradle :app:assembleDebug --offline -Pnextcraft.sideBySideSuffix=x` → exit 0; APK `x` dipasang (`Success`).
+- UI `x` (screenshot tanpa gulir manual): setelah "Buat backup" → "Backup tersimpan: 33 file, 79 KB" langsung terlihat di dasar layar; setelah restore dengan kata sandi benar → "33 file dipulihkan. Mulai ulang app untuk menyelesaikan." beserta tombol "Mulai ulang sekarang" terlihat; 33 sama dengan jumlah saat backup (sebelumnya 34). 0 crash, 0 ANR. Setelah restart, tema Gelap, "Simpan perubahan otomatis" aktif, bahasa Bawaan sistem.
+
+Batasan:
+- Tidak ada tes unit baru untuk penghitungan restore: `BackupManager` membutuhkan `Context`; verifikasinya lewat UI di atas.
+- Auto-scroll diuji untuk pesan sukses backup dan sukses restore. Pesan gagal (mis. kata sandi salah) memakai jalur kode yang sama tapi tidak diuji ulang setelah perubahan ini.
+- `LaunchedEffect` memakai kunci `backup` (data class): dua hasil identik berturut-turut tidak memicu gulir kedua; pesan sudah terlihat kecuali pengguna menggulir menjauh.
+- Pesan sempat berada tepat di atas bilah bawah (terlihat penuh, tanpa ruang kosong di bawahnya).
+
+Pembersihan: berkas backup uji di `Download` dan berkas sementara di `/data/local/tmp` dihapus.
