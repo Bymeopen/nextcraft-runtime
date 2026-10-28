@@ -231,3 +231,20 @@ Kesalahan skrip uji (bukan bug aplikasi): ketukan di luar dialog menutupnya; sat
 Belum diuji: restore backup yang memuat API key; restore dengan `android_host_tools` atau `auto_approve_all_tools` bernilai true di dalam arsip (kode meresetnya, hanya dibaca, tidak dijalankan); restore backup tidak terenkripsi; backup otomatis terjadwal.
 
 Pembersihan: berkas backup uji di `Download` dihapus, berkas sementara di `/data/local/tmp` dan `/tmp/bk` dihapus, tes JVM sementara dihapus.
+
+---
+
+## Perbaikan UX dialog restore (`ui/BackupScreen.kt`)
+
+Dua temuan UX (LOW) dari uji restore terenkripsi diperbaiki:
+- Tombol "Pulihkan" yang nonaktif kini tampak redup (`scheme.onSurface` alpha 0,38) selama backup terenkripsi dan kolom kata sandi kosong; aktif tetap merah (`tokens.dangerText`). Logika `enabled` dipindah ke satu variabel `canRestore`.
+- Label kolom kata sandi di dialog restore kini "Password" (string baru `restore_password`, ditambahkan ke ketujuh lokal: en, ar, es, hi, in, ru, zh-rCN), bukan "Password (optional)".
+
+Verifikasi:
+- `gradle :app:testDebugUnitTest --offline` → exit 0; 374 tes, 0 gagal, 0 error, 1 dilewati; `StringParityTest` 3/3.
+- `gradle :app:assembleDebug --offline -Pnextcraft.sideBySideSuffix=x` → exit 0; APK `com.nextcraft.forge.x` dipasang dengan `pm install -r` (`Success`).
+- UI `x` (screenshot): backup terenkripsi baru dibuat dari UI (40.602 byte, header `NCBK`); di dialog restore dengan kolom kosong label "Kata sandi" dan tombol Pulihkan abu-abu; mengetuk tombol itu tidak berbuat apa-apa dan dialog tetap terbuka; setelah kata sandi diisi tombol menjadi merah; restore penuh tetap berhasil ("34 file dipulihkan. Mulai ulang app untuk menyelesaikan."); 0 crash, 0 ANR. Setelah restart, tema Gelap, "Simpan perubahan otomatis" aktif, bahasa Bawaan sistem (keadaan awal).
+
+Belum diperbaiki dari temuan UX sebelumnya: pesan hasil muncul di dasar layar yang panjang (LOW), dan jumlah file backup (33) berbeda satu dari restore (34) (INFO). Terjemahan kelima bahasa selain Inggris dan Indonesia untuk "Password" saya tulis sendiri dan belum ditinjau penutur asli; hanya Indonesia dan Inggris yang tampil di layar saat uji.
+
+Pembersihan: berkas backup uji di `Download` dan berkas sementara di `/data/local/tmp` dihapus.
