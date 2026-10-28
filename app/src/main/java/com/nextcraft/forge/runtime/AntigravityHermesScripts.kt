@@ -167,14 +167,24 @@ import argparse
 import glob
 import json
 import os
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../.."))
+sys.path.insert(0, SCRIPT_DIR)
+from security_gate import SECRET_AND_INJECTION_PATTERNS  # single source of truth for secret patterns
+
 DB_PATH = os.path.join(WORKSPACE_ROOT, ".agents/memory/history.db")
 BRAIN_GLOB = "/root/.gemini/antigravity-cli/brain/*/.system_generated/logs/transcript.jsonl"
+
+def redact_secrets(text: str) -> str:
+    # history.db is plain-text and searchable: never persist credentials or injected instructions.
+    for pattern, _ in SECRET_AND_INJECTION_PATTERNS:
+        text = re.sub(pattern, "[REDACTED]", text)
+    return text
 
 def get_db() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -216,7 +226,7 @@ def sync_transcripts(conn: sqlite3.Connection) -> int:
                     unique_key = f"{session_id}:{step_idx}:{step_type}"
                     if conn.execute("SELECT 1 FROM indexed_steps WHERE unique_key = ?", (unique_key,)).fetchone():
                         continue
-                    conn.execute("INSERT INTO memory_fts (session_id, step_id, source, created_at, content) VALUES (?, ?, ?, ?, ?)", (session_id, step_idx, source, created_at, content_clean[:8000]))
+                    conn.execute("INSERT INTO memory_fts (session_id, step_id, source, created_at, content) VALUES (?, ?, ?, ?, ?)", (session_id, step_idx, source, created_at, redact_secrets(content_clean)[:8000]))
                     conn.execute("INSERT INTO indexed_steps (unique_key, indexed_at) VALUES (?, ?)", (unique_key, now_str))
                     added += 1
         except OSError:
@@ -227,7 +237,7 @@ def sync_transcripts(conn: sqlite3.Connection) -> int:
 def log_note(conn: sqlite3.Connection, title: str, text: str) -> None:
     now_str = datetime.now(timezone.utc).isoformat()
     unique_key = f"note:{now_str}:{title}"
-    conn.execute("INSERT INTO memory_fts (session_id, step_id, source, created_at, content) VALUES (?, ?, ?, ?, ?)", ("episodic-note", "note", "AGENT_NOTE", now_str, f"[{title}] {text}"))
+    conn.execute("INSERT INTO memory_fts (session_id, step_id, source, created_at, content) VALUES (?, ?, ?, ?, ?)", ("episodic-note", "note", "AGENT_NOTE", now_str, redact_secrets(f"[{title}] {text}")))
     conn.execute("INSERT INTO indexed_steps (unique_key, indexed_at) VALUES (?, ?)", (unique_key, now_str))
     conn.commit()
     print(f"Logged episodic note: {title}")
@@ -380,9 +390,10 @@ def audit_skills() -> bool:
     ok, count = True, 0
     for root, _, files in os.walk(SKILLS_DIR):
         for f in files:
-            if f.endswith(".md"):
+            p = os.path.join(root, f)
+            # Audit every regular file (not only .md): export bundles the whole skills tree.
+            if os.path.isfile(p) and not os.path.islink(p):
                 count += 1
-                p = os.path.join(root, f)
                 with open(p, "r", encoding="utf-8", errors="replace") as fh:
                     text = fh.read()
                 for pattern, reason in SECRET_AND_INJECTION_PATTERNS:
@@ -395,6 +406,10 @@ def audit_skills() -> bool:
 
 def export_bundle(out_path: str) -> None:
     if not audit_skills():
+        sys.exit(1)
+    out_real, skills_real = os.path.realpath(out_path), os.path.realpath(SKILLS_DIR)
+    if os.path.commonpath([out_real, skills_real]) == skills_real:
+        print("Error: output bundle must not be written inside the skills directory.")
         sys.exit(1)
     with tarfile.open(out_path, "w:gz") as tar:
         tar.add(SKILLS_DIR, arcname="skills")
@@ -432,8 +447,8 @@ def make_executable(path: str) -> None:
     os.chmod(path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 def bootstrap_workspace(target_dir: str) -> None:
-    target_dir = os.path.abspath(target_dir)
-    if not target_dir.startswith("/workspace"):
+    target_dir = os.path.realpath(target_dir)
+    if target_dir != "/workspace" and not target_dir.startswith("/workspace/"):
         print(f"Error: Target directory must be inside /workspace (got {target_dir})")
         sys.exit(1)
     for sub in (".agents/memory", ".agents/scripts", ".agents/skills"):
@@ -492,12 +507,17 @@ if __name__ == "__main__":
 #!/usr/bin/env python3
 import argparse
 import html.parser
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
+
+MAX_FETCH_BYTES = 2 * 1024 * 1024  # cap response size to avoid memory exhaustion
 
 class SimpleHTMLToText(html.parser.HTMLParser):
     def __init__(self):
@@ -527,14 +547,32 @@ class SimpleHTMLToText(html.parser.HTMLParser):
         lines = [re.sub(r"\s+", " ", line).strip() for line in raw.splitlines()]
         return "\n".join(line for line in lines if line)
 
+def assert_public_url(url: str) -> None:
+    # SSRF guard: every address the host resolves to must be public (no loopback/private/link-local/reserved).
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("Only http:// and https:// URLs are allowed.")
+    for info in socket.getaddrinfo(parsed.hostname, parsed.port or 443):
+        addr = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not addr.is_global:
+            raise ValueError(f"Blocked non-public address {addr} for host {parsed.hostname}.")
+
+class PublicOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    # Re-validate each redirect target, otherwise a public URL could bounce to an internal one.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        assert_public_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
 def fetch_web(url: str, max_chars: int = 6000) -> None:
     if not url.lower().startswith(("http://", "https://")):
         print(f"Error fetching {url}: Only http:// and https:// URLs are allowed.")
         sys.exit(1)
     req = urllib.request.Request(url, headers={"User-Agent": "HermesLite-Reader/2.0 (+NextCraftForge)"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw_html = resp.read().decode("utf-8", errors="replace")
+        assert_public_url(url)
+        opener = urllib.request.build_opener(PublicOnlyRedirectHandler)
+        with opener.open(req, timeout=10) as resp:
+            raw_html = resp.read(MAX_FETCH_BYTES).decode("utf-8", errors="replace")
     except Exception as e:
         print(f"Error fetching {url}: {e}")
         sys.exit(1)
@@ -605,6 +643,17 @@ SYMBOL_PATTERNS = [
     ("const", re.compile(r"^\s*(?:(?:public|private|protected|internal|const|static|final)\s+)*(?:val|var|const|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[:=]")),
 ]
 
+def _is_within(path: str, root: str) -> bool:
+    # commonpath compares whole path components, so "/workspace-evil" is not inside "/workspace".
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:
+        return False
+
+def _project_root_of(db_path: str) -> str:
+    # <root>/.agents/memory/<db> -> <root>
+    return os.path.dirname(os.path.dirname(os.path.dirname(db_path)))
+
 def _resolve_db_path(target_dir: str = "") -> str:
     if target_dir:
         real = os.path.realpath(os.path.abspath(target_dir))
@@ -642,21 +691,23 @@ def _extract_symbols(lines: list) -> list:
 
 def autoindex(root_dir: str, force: bool = False) -> dict:
     real_root = os.path.realpath(os.path.abspath(root_dir or WORKSPACE_ROOT))
-    if not (real_root.startswith("/workspace") or real_root.startswith("/tmp")):
+    if not (_is_within(real_root, "/workspace") or _is_within(real_root, "/tmp")):
         raise ValueError(f"Indexing restricted to /workspace or /tmp (got {real_root})")
     db_path = _resolve_db_path(real_root)
     conn = get_db(db_path)
     t0 = time.time()
     indexed_files, skipped_unchanged = 0, 0
     existing = {row[0]: (row[1], row[2]) for row in conn.execute("SELECT file_path, mtime, size_bytes FROM indexed_files").fetchall()}
+    memory_dir = os.path.dirname(db_path)  # the index/history databases live here; never index them
+    seen_files = set()
     for dirpath, dirnames, filenames in os.walk(real_root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".git") and d != "memory"]
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and os.path.join(dirpath, d) != memory_dir]
         for fname in filenames:
             _, ext = os.path.splitext(fname)
             if ext.lower() not in INDEXABLE_EXTS:
                 continue
             fpath = os.path.realpath(os.path.join(dirpath, fname))
-            if not fpath.startswith(real_root):
+            if not _is_within(fpath, real_root):
                 continue
             try:
                 st = os.stat(fpath)
@@ -665,6 +716,7 @@ def autoindex(root_dir: str, force: bool = False) -> dict:
             if st.st_size <= 0 or st.st_size > 1024 * 1024:
                 continue
             rel_path = os.path.relpath(fpath, real_root)
+            seen_files.add(rel_path)
             if not force and rel_path in existing:
                 old_mtime, old_size = existing[rel_path]
                 if abs(st.st_mtime - old_mtime) < 0.001 and st.st_size == old_size:
@@ -697,6 +749,15 @@ def autoindex(root_dir: str, force: bool = False) -> dict:
                     break
             conn.execute("INSERT OR REPLACE INTO indexed_files (file_path, mtime, size_bytes, total_lines) VALUES (?, ?, ?, ?)", (rel_path, st.st_mtime, st.st_size, len(lines)))
             indexed_files += 1
+    # Prune entries of deleted/now-unindexable files, but only when walking the project root that owns this DB
+    # (a sub-directory or shared-DB walk only sees part of the tree and would wipe valid entries).
+    removed_files = 0
+    if _project_root_of(db_path) == real_root:
+        for stale in set(existing) - seen_files:
+            conn.execute("DELETE FROM code_passages_fts WHERE file_path = ?", (stale,))
+            conn.execute("DELETE FROM symbol_defs WHERE file_path = ?", (stale,))
+            conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (stale,))
+            removed_files += 1
     conn.commit()
     elapsed = round(time.time() - t0, 2)
     return {
@@ -704,6 +765,7 @@ def autoindex(root_dir: str, force: bool = False) -> dict:
         "dbPath": db_path,
         "updatedFiles": indexed_files,
         "unchangedFiles": skipped_unchanged,
+        "removedFiles": removed_files,
         "totalFiles": conn.execute("SELECT COUNT(*) FROM indexed_files").fetchone()[0],
         "totalPassages": conn.execute("SELECT COUNT(*) FROM code_passages_fts").fetchone()[0],
         "totalSymbols": conn.execute("SELECT COUNT(*) FROM symbol_defs").fetchone()[0],
@@ -722,17 +784,29 @@ def _record_gain(conn: sqlite3.Connection, qtype: str, qtext: str, matched_files
     conn.commit()
     return saved_tokens
 
-def search_code(query: str, root_dir: str = "", limit: int = 5) -> str:
+def _refresh_index(real_root: str) -> None:
+    db_path = _resolve_db_path(real_root)
+    project_root = _project_root_of(db_path)
+    # Queries from a sub-directory refresh the whole project so relative paths stay consistent.
+    target = project_root if _is_within(real_root, project_root) else real_root
+    try:
+        autoindex(target)
+    except ValueError:
+        pass  # root outside the indexable area: query whatever is already indexed
+
+def search_code(query: str, root_dir: str = "", limit: int = 5, refresh: bool = True) -> str:
     real_root = os.path.realpath(os.path.abspath(root_dir or WORKSPACE_ROOT))
     conn = get_db(_resolve_db_path(real_root))
-    if conn.execute("SELECT COUNT(*) FROM indexed_files").fetchone()[0] == 0:
-        autoindex(real_root)
+    if refresh:
+        _refresh_index(real_root)
     sql = "SELECT file_path, start_line, end_line, symbol_context, content, bm25(code_passages_fts) AS rank FROM code_passages_fts WHERE code_passages_fts MATCH ? ORDER BY rank LIMIT ?"
     try:
         rows = conn.execute(sql, (query, limit)).fetchall()
     except sqlite3.OperationalError:
-        safe_q = " OR ".join(f'"{w}"' for w in re.findall(r"[A-Za-z0-9_]+", query) if len(w) > 1) or f'"{query}"'
-        rows = conn.execute(sql, (safe_q, limit)).fetchall()
+        # Fall back to plain alphanumeric tokens: they can never contain FTS5 syntax or quotes.
+        tokens = re.findall(r"[A-Za-z0-9_]+", query)
+        safe_q = " OR ".join(f'"{w}"' for w in tokens if len(w) > 1) or " OR ".join(f'"{w}"' for w in tokens)
+        rows = conn.execute(sql, (safe_q, limit)).fetchall() if safe_q else []
     if not rows:
         return f"No code passages matched query: `{query}`"
     out, matched_files = [f"### Forge Reference Index — BM25 Code Search: `{query}` (Top {len(rows)})"], set()
@@ -746,11 +820,11 @@ def search_code(query: str, root_dir: str = "", limit: int = 5) -> str:
         result_text += f"\n\n> **Token Gain**: Saved ~`{saved:,}` tokens vs reading {len(matched_files)} full file(s)."
     return result_text
 
-def lookup_symbol(symbol: str, root_dir: str = "", limit: int = 10) -> str:
+def lookup_symbol(symbol: str, root_dir: str = "", limit: int = 10, refresh: bool = True) -> str:
     real_root = os.path.realpath(os.path.abspath(root_dir or WORKSPACE_ROOT))
     conn = get_db(_resolve_db_path(real_root))
-    if conn.execute("SELECT COUNT(*) FROM indexed_files").fetchone()[0] == 0:
-        autoindex(real_root)
+    if refresh:
+        _refresh_index(real_root)
     rows = conn.execute("SELECT symbol_name, kind, file_path, line_num, signature FROM symbol_defs WHERE symbol_name = ? OR symbol_name LIKE ? ORDER BY (symbol_name = ?) DESC, symbol_name ASC LIMIT ?", (symbol, f"%{symbol}%", symbol, limit)).fetchall()
     if not rows:
         return f"No symbol definition found for `{symbol}`."
@@ -767,13 +841,12 @@ def lookup_symbol(symbol: str, root_dir: str = "", limit: int = 10) -> str:
 def batch_search(queries: list, symbols: list = None, root_dir: str = "", limit_per_query: int = 3) -> str:
     real_root = os.path.realpath(os.path.abspath(root_dir or WORKSPACE_ROOT))
     conn = get_db(_resolve_db_path(real_root))
-    if conn.execute("SELECT COUNT(*) FROM indexed_files").fetchone()[0] == 0:
-        autoindex(real_root)
+    _refresh_index(real_root)
     sections = ["## Forge Reference Index — Batch Search Results"]
     for s in (symbols or [])[:10]:
-        sections.append(lookup_symbol(str(s), real_root, limit=5))
+        sections.append(lookup_symbol(str(s), real_root, limit=5, refresh=False))
     for q in (queries or [])[:10]:
-        sections.append(search_code(str(q), real_root, limit=limit_per_query))
+        sections.append(search_code(str(q), real_root, limit=limit_per_query, refresh=False))
     return "\n\n---\n\n".join(sections)
 
 def gain_report(root_dir: str = "") -> str:
@@ -831,8 +904,274 @@ if __name__ == "__main__":
     main()
 """.trimIndent() + "\n"
 
+    val SECURITY_GATE_V2_PY: String = """
+#!/usr/bin/env python3
+# PreToolUse gate shared by Claude Code and Antigravity (agy).
+#
+# Mode (first match wins): env AGENT_GATE_MODE, then .agents/gate-mode, then "release".
+#   release -> full checks below.
+#   debug   -> no checks (only the system_server crash guard stays).
+# Anything unreadable in release mode is denied (fail closed).
+import json
+import os
+import re
+import shlex
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+WORKSPACE_ROOT = os.path.realpath(os.path.join(SCRIPT_DIR, "../.."))
+MODE_FILE = os.path.join(WORKSPACE_ROOT, ".agents/gate-mode")
+MEMORY_FILES = {
+    os.path.join(WORKSPACE_ROOT, "AGENTS.md"),
+    os.path.join(WORKSPACE_ROOT, ".agents/memory/USER.md"),
+    os.path.join(WORKSPACE_ROOT, ".agents/memory/MEMORY.md"),
+}
+MAX_MEMORY_BYTES = 24 * 1024  # 24 KB total budget
+
+# Files that define the gate itself: an agent must not be able to switch the mode or unregister the hook.
+CONTROL_FILES = {os.path.join(WORKSPACE_ROOT, p) for p in (
+    ".agents/gate-mode", ".agents/hooks.json", ".agents/scripts/security_gate_v2.py",
+    ".claude/settings.json", ".claude/settings.local.json",
+)}
+CONTROL_CMD_RE = re.compile(r"gate-mode|AGENT_GATE_MODE|security_gate_v2|\.agents/hooks\.json|\.claude/settings")
+READONLY_CMDS = {"cat", "ls", "grep", "egrep", "head", "tail", "stat", "sha256sum", "wc", "diff", "file"}
+
+# Tool names / argument keys differ per harness (Antigravity vs. Claude Code); accept both.
+COMMAND_TOOLS = {"run_command", "Bash"}
+FILE_TOOLS = {"write_file", "edit_file", "replace_file_content", "multi_replace_file_content", "Write", "Edit", "MultiEdit", "NotebookEdit"}
+PATH_KEYS = ("Path", "path", "TargetFile", "file_path", "notebook_path")
+
+# Denied in every mode: this sysctl change reboots Android's system_server.
+ALWAYS_DENY_CMD = (r"unprivileged_bpf_disabled", "Blocked: Modifying unprivileged_bpf_disabled crashes Android system_server.")
+
+DENY_CMD_PATTERNS = [
+    (r"\b(rm|unlink|shred|truncate)\b.*universal-agent-telemetry-protocol\.md", "Blocked by Immutable Protocol Guard: universal-agent-telemetry-protocol.md may only be upgraded, never deleted."),
+    (r"\b(mkfs|fdisk|wipefs)\b", "Blocked: Disk formatting utilities are forbidden."),
+    (r"\bdd\b.*\bof=/dev/(sd|vd|nvme|mmcblk|loop|block|dm-)", "Blocked: Direct dd write to block device is forbidden."),
+    (r":\(\)\s*\{\s*:\|:&\s*\};:", "Blocked: Fork bomb detected."),
+    (r"(\w+)\s*\(\)\s*\{[^}]*\1\s*\|\s*\1\s*&[^}]*\}\s*;?\s*\1", "Blocked: Fork bomb detected."),
+]
+
+# Recursive `rm` on these targets is always blocked (checked by token, so flag order/glob suffix do not matter).
+PROTECTED_RM_TARGETS = {"/", "/root", "/workspace", "/home", "/etc", "/usr", "/var", "/bin", "/lib", "/sdcard", "~", "${'$'}HOME", "${'$'}{HOME}", WORKSPACE_ROOT}
+
+ASK_CMD_PATTERNS = [
+    (r"curl\s+.*\|\s*(ba)?sh", "Remote script pipe-to-shell detected. Confirm execution?"),
+    (r"wget\s+.*\|\s*(ba)?sh", "Remote script pipe-to-shell detected. Confirm execution?"),
+    (r"(bash|sh|zsh)\s+<\(\s*(curl|wget)", "Remote script process-substitution-to-shell detected. Confirm execution?"),
+    (r"\b(nc|ncat|netcat)\b.*-e", "Reverse shell pattern detected. Confirm execution?"),
+]
+
+
+def get_mode() -> str:
+    value = os.environ.get("AGENT_GATE_MODE", "").strip().lower()
+    if value not in ("debug", "release"):
+        try:
+            with open(MODE_FILE, "r") as fh:
+                value = fh.read().strip().lower()
+        except OSError:
+            value = ""
+    return value if value in ("debug", "release") else "release"  # unknown/missing -> safest
+
+
+def _segments(cmd: str):
+    return re.split(r"[;&|\n`]+|\${'$'}\(", cmd)
+
+
+def _tokens(segment: str) -> list:
+    try:
+        tokens = shlex.split(segment)
+    except ValueError:
+        tokens = segment.split()
+    while tokens and (tokens[0] in ("sudo", "command", "exec", "nohup", "env") or "=" in tokens[0]):
+        tokens.pop(0)
+    return tokens
+
+
+def _is_dangerous_rm(cmd: str):
+    for segment in _segments(cmd):
+        tokens = _tokens(segment)
+        if not tokens or os.path.basename(tokens[0]) != "rm":
+            continue
+        flags = [t for t in tokens[1:] if t.startswith("-")]
+        recursive = any(t == "--recursive" or (not t.startswith("--") and ("r" in t or "R" in t)) for t in flags)
+        if not recursive:
+            continue
+        for target in (t for t in tokens[1:] if not t.startswith("-")):
+            norm = target.rstrip("*").rstrip("/")
+            if norm.endswith("/."):
+                norm = norm[:-2]
+            norm = norm or "/"
+            if norm in PROTECTED_RM_TARGETS or os.path.realpath(os.path.expanduser(norm)) in PROTECTED_RM_TARGETS:
+                return target
+    return None
+
+
+def _touches_control_files(cmd: str) -> bool:
+    # Read-only inspection is fine; anything else that mentions a control file is treated as tampering.
+    for segment in _segments(cmd):
+        if not CONTROL_CMD_RE.search(segment):
+            continue
+        tokens = _tokens(segment)
+        if ">" in segment or not tokens or os.path.basename(tokens[0]) not in READONLY_CMDS:
+            return True
+    return False
+
+
+def check_command(args: dict, mode: str):
+    cmd = args.get("CommandLine", "") or args.get("command", "")
+    if re.search(ALWAYS_DENY_CMD[0], cmd):
+        return {"decision": "deny", "reason": ALWAYS_DENY_CMD[1]}
+    if mode == "debug":
+        return {"decision": "allow"}
+    if _touches_control_files(cmd):
+        return {"decision": "deny", "reason": "Blocked: gate control files (gate-mode, hooks, gate script, .claude/settings*) can only be changed by the user."}
+    for pattern, reason in DENY_CMD_PATTERNS:
+        if re.search(pattern, cmd):
+            return {"decision": "deny", "reason": reason}
+    bad_target = _is_dangerous_rm(cmd)
+    if bad_target:
+        return {"decision": "deny", "reason": f"Blocked: Catastrophic recursive deletion of {bad_target}."}
+    for pattern, reason in ASK_CMD_PATTERNS:
+        if re.search(pattern, cmd):
+            return {"decision": "ask", "reason": reason}
+    return {"decision": "allow"}
+
+
+def _get_path(args: dict) -> str:
+    for key in PATH_KEYS:
+        if args.get(key):
+            return args[key]
+    return ""
+
+
+def _allowed_write_roots() -> list:
+    # Workspace, temp, agent memory/brain dirs. ~/.claude is limited to projects/ so settings.json stays out of reach.
+    home = os.path.expanduser("~")
+    roots = [WORKSPACE_ROOT, "/tmp", os.path.join(home, ".claude/projects"), os.path.join(home, ".gemini")]
+    for var in ("AGY_CONFIG_ROOT", "ANTIGRAVITY_CONFIG_ROOT", "TMPDIR"):
+        value = os.environ.get(var)
+        if value:
+            roots.append(value)
+    return [os.path.realpath(r) for r in roots]
+
+
+def _within(path: str, root: str) -> bool:
+    return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+def is_outside_workspace(path: str) -> bool:
+    if not path or not os.path.isabs(path):
+        return False  # relative paths resolve against the agent's cwd (the project)
+    real_path = os.path.realpath(path)  # resolves symlinks so a link inside the workspace cannot escape it
+    return not any(_within(real_path, root) for root in _allowed_write_roots())
+
+
+def is_protected_cognitive_file(path: str) -> bool:
+    real = os.path.realpath(path)
+    # AGENTS.md section 1.C: no secrets in ANY .md file, not only memory/skill files.
+    return real in MEMORY_FILES or real.lower().endswith(".md")
+
+
+def _read_existing(path: str) -> str:
+    try:
+        with open(path, "r", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def _added_and_resulting(args: dict, existing: str):
+    # Returns (text being added, full file text after the write or None when it cannot be derived).
+    full = args.get("Content") or args.get("content")
+    if full is not None:
+        return full, full
+    edits = args.get("edits")
+    if isinstance(edits, list):
+        text = existing
+        for edit in edits:
+            text = text.replace(edit.get("old_string", ""), edit.get("new_string", ""), 1)
+        return "\n".join(e.get("new_string", "") for e in edits), text
+    if "new_string" in args:
+        old, new = args.get("old_string", ""), args["new_string"]
+        return new, existing.replace(old, new, -1 if args.get("replace_all") else 1)
+    return args.get("Replacement", "") or "", None
+
+
+def check_file_mutation(args: dict):
+    path = _get_path(args)
+    if not path:
+        return {"decision": "allow"}
+    real = os.path.realpath(path)
+    if real in CONTROL_FILES:
+        return {"decision": "deny", "reason": "Blocked: gate control files (gate-mode, hooks, gate script, .claude/settings*) can only be changed by the user."}
+    if is_outside_workspace(path):
+        return {"decision": "deny", "reason": f"Blocked: writes are confined to {WORKSPACE_ROOT} (plus /tmp and agent memory dirs); got {path}"}
+    if not is_protected_cognitive_file(path):
+        return {"decision": "allow"}
+
+    from security_gate import SECRET_AND_INJECTION_PATTERNS  # reuse the shared secret/injection patterns
+    existing = _read_existing(real) if os.path.exists(real) else ""
+    added, resulting = _added_and_resulting(args, existing)
+
+    for pattern, reason in SECRET_AND_INJECTION_PATTERNS:
+        if re.search(pattern, added):
+            return {"decision": "deny", "reason": reason}
+
+    anchors = ("CORE-EXEC-001", "CORE-EXEC-002", "CORE-EXEC-003", "CORE-EXEC-004", "CORE-EXEC-005")
+    if resulting is not None:
+        missing = [a for a in anchors if a in existing and a not in resulting]
+        if missing:
+            return {"decision": "deny", "reason": f"Blocked by Immutable Protocol Guard: {os.path.basename(real)} contains protected execution notes ({', '.join(missing)}) which may only be upgraded, never deleted."}
+
+    if real in MEMORY_FILES:
+        total = len((resulting if resulting is not None else added).encode("utf-8"))
+        for mem_file in MEMORY_FILES - {real}:
+            if os.path.exists(mem_file):
+                total += os.path.getsize(mem_file)
+        if total > MAX_MEMORY_BYTES:
+            return {"decision": "deny", "reason": f"Blocked by Memory Guard: Combined memory size ({total} B) exceeds 24 KB limit ({MAX_MEMORY_BYTES} B). Compact memory first."}
+    return {"decision": "allow"}
+
+
+def emit(result: dict) -> None:
+    # Legacy shape ("decision") plus the Claude Code PreToolUse shape so either harness honours the verdict.
+    result["hookSpecificOutput"] = {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": result["decision"],
+        "permissionDecisionReason": result.get("reason", ""),
+    }
+    print(json.dumps(result))
+
+
+def main():
+    mode = get_mode()
+    try:
+        sys.path.insert(0, SCRIPT_DIR)
+        payload = json.load(sys.stdin)
+        tool_call = payload.get("toolCall") or {}
+        tool_name = tool_call.get("name") or payload.get("toolName") or payload.get("tool_name") or ""
+        args = tool_call.get("args") or payload.get("tool_input") or {}
+
+        if tool_name in FILE_TOOLS or _get_path(args):
+            result = {"decision": "allow"} if mode == "debug" else check_file_mutation(args)
+        elif tool_name in COMMAND_TOOLS or "CommandLine" in args or "command" in args:
+            result = check_command(args, mode)
+        else:
+            result = {"decision": "allow"}
+    except Exception as exc:
+        # Release fails closed; debug never blocks on a gate error.
+        result = {"decision": "allow"} if mode == "debug" else {"decision": "deny", "reason": f"Blocked: security gate could not evaluate the request ({type(exc).__name__})."}
+    emit(result)
+
+
+if __name__ == "__main__":
+    main()
+""".trimIndent() + "\n"
+
     val HERMES_SCRIPTS: Map<String, String> = linkedMapOf(
         "security_gate.py" to SECURITY_GATE_PY,
+        "security_gate_v2.py" to SECURITY_GATE_V2_PY,
         "session_search.py" to SESSION_SEARCH_PY,
         "context_compressor.py" to CONTEXT_COMPRESSOR_PY,
         "skill_hub.py" to SKILL_HUB_PY,

@@ -113,11 +113,11 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
     "enabled": true,
     "PreToolUse": [
       {
-        "matcher": "run_command|write_file|edit_file",
+        "matcher": "run_command|write_file|edit_file|Bash|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agents/scripts/security_gate.py 2>/dev/null || python3 scripts/security_gate.py",
+            "command": "python3 .agents/scripts/security_gate_v2.py",
             "timeout": 5
           }
         ]
@@ -128,6 +128,26 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
 """.trimIndent() + "\n"
 
     val WORKSPACE_HOOKS_JSON: String = workspaceHooksJsonFor("/workspace")
+
+    /** Registers the shared gate as a Claude Code PreToolUse hook (the Antigravity hook lives in `.agents/hooks.json`). */
+    val WORKSPACE_CLAUDE_SETTINGS_JSON: String = """
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${'$'}CLAUDE_PROJECT_DIR\"/.agents/scripts/security_gate_v2.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+""".trimIndent() + "\n"
 
     val DEFAULT_USER_MD: String = """
 # User Profile & Working Preferences
@@ -263,7 +283,7 @@ Jika kompilasi atau pengujian gagal:
 ---
 
 ## 5. Guardrails Keamanan Sistem (Hardware-Level Firewall)
-Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_command|write_file|edit_file`) dan `.agents/scripts/security_gate.py`:
+Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_command|write_file|edit_file|Bash|Write|Edit`) dan `.agents/scripts/security_gate_v2.py` (mode mengikuti tipe build aplikasi: build debug = tanpa gate, build non-debug/release = gate aktif; file `.agents/gate-mode` ditulis otomatis oleh aplikasi dan env `AGENT_GATE_MODE` dapat menimpanya per sesi):
 1. **Isolasi Workspace**: Seluruh pembuatan, pengeditan, dan build proyek wajib berada di dalam `$guestWorkspacePath`.
 2. **Larangan Perintah Destruktif**: Memblokir `rm -rf /`, `rm -rf ~`, `mkfs`, `dd` ke perangkat blok, fork bomb, serta modifikasi `/proc/sys/kernel/unprivileged_bpf_disabled`.
 3. **Memory & Skill Guard**: Memindai otomatis setiap penulisan ke file memori/skill untuk memblokir kebocoran token, kunci privat, *prompt injection*, dan menjaga kuota `< 24 KB`.
@@ -300,6 +320,20 @@ Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_comm
             runCatching {
                 hooksFile.parentFile?.mkdirs()
                 hooksFile.writeText(workspaceHooksJsonFor(guestWorkspacePath))
+            }
+        }
+
+        // Gate mode follows the app build: debug builds run agents ungated, non-debug (release) builds enforce the gate.
+        val gateMode = if (com.nextcraft.forge.BuildConfig.DEBUG) "debug\n" else "release\n"
+        val gateModeFile = File(agentsDir, "gate-mode")
+        if (runCatching { gateModeFile.takeIf { it.isFile }?.readText() }.getOrNull() != gateMode) {
+            runCatching { gateModeFile.writeText(gateMode) }
+        }
+        val claudeSettings = File(File(workspace, ".claude"), "settings.json")
+        if (!claudeSettings.isFile) {
+            runCatching {
+                claudeSettings.parentFile?.mkdirs()
+                claudeSettings.writeText(WORKSPACE_CLAUDE_SETTINGS_JSON)
             }
         }
 
