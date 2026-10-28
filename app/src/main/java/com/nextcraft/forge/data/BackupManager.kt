@@ -138,7 +138,8 @@ class BackupManager(private val context: Context) {
         }
         val staging = File(context.cacheDir, "restore-staging").apply { deleteRecursively(); mkdirs() }
         val stagingRoot = staging.canonicalFile.toPath()
-        var files = 0
+        var entries = 0 // every archive entry, for the size guard
+        var files = 0 // user files only, like the backup count: the manifest is not one of them
         var bytes = 0L
         try {
             onProgress("reading")
@@ -147,7 +148,7 @@ class BackupManager(private val context: Context) {
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     if (entry.isDirectory) continue
-                    require(files < MAX_RESTORE_FILES) { "Backup archive has too many files" }
+                    require(entries < MAX_RESTORE_FILES) { "Backup archive has too many files" }
                     val target = File(staging, entry.name).canonicalFile
                     require(target.toPath().startsWith(stagingRoot)) { "Unsafe path in backup: ${entry.name}" }
                     target.parentFile?.mkdirs()
@@ -160,7 +161,8 @@ class BackupManager(private val context: Context) {
                             out.write(buffer, 0, count)
                         }
                     }
-                    files++
+                    entries++
+                    if (entry.name != MANIFEST) files++
                 }
             }
             val manifest = File(staging, MANIFEST).takeIf { it.isFile }?.let { JSONObject(it.readText()) }
