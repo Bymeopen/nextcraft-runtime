@@ -203,3 +203,31 @@ Batasan yang diketahui:
 - Pemotongan di dalam 33 byte header (sebelum salt/nonce lengkap) masih memunculkan `EOFException`; tidak diubah.
 - Panjang chunk yang diubah di luar rentang 16..(1 MiB+16) tetap `IllegalArgumentException("Damaged backup")`; ini disengaja karena pesannya informatif.
 - Perubahan ini hanya diuji di tingkat `BackupCrypto` (JVM). Alur restore lewat UI (`BackupManager` + pemilih berkas) belum diuji di perangkat.
+
+---
+
+## Uji restore backup terenkripsi lewat UI (`x`)
+
+Skenario: tema `x` diubah ke Putih, backup terenkripsi dibuat (Proyek, Chat, Setelan aktif; API key mati) dengan kata sandi berspasi `kata sandi uji 42`, tema dikembalikan ke Gelap, lalu backup direstore. Pemilih berkas adalah DocumentsUI sistem (penyimpanan di `Download`).
+
+| Langkah | Hasil |
+|---|---|
+| Buat backup terenkripsi | LULUS — pesan "Backup tersimpan: 33 file, 79 KB"; berkas `.ncbak` 40.534 byte, header `NCBK` versi 1; tidak ada penanda `PK` atau teks pengaturan di isinya |
+| Restore dengan kata sandi SALAH | LULUS — "Kata sandi salah, atau backup rusak."; 0 crash, 0 ANR |
+| Restore tanpa kata sandi | LULUS — tombol Pulihkan nonaktif (`enabled = !restoreEncrypted \|\| restorePassword.isNotEmpty()`), dialog tetap terbuka |
+| Restore dengan kata sandi BENAR | LULUS — "34 file dipulihkan. Mulai ulang app untuk menyelesaikan."; tombol "Mulai ulang sekarang" memulai proses baru (pid 26271 → 29055) |
+| Pengaturan dari backup diterapkan | LULUS — setelah restart tema kembali Putih (nilai di dalam backup) |
+
+Isi backup (didekripsi dengan `BackupCrypto` lewat tes JVM sementara yang tidak di-commit): `nextcraft-backup.json`, `prefs/nextcraft_preferences.xml` (hanya `runtime_setup_complete=true` dan `background_prompts_shown=true` sebagai boolean), dan 32 entri `workspaces/`. Total 34 entri.
+
+Temuan UX (LOW/INFO):
+- LOW — Tombol "Pulihkan" yang nonaktif tampak sama dengan yang aktif: `Text(..., color = tokens.dangerText)` di `ui/BackupScreen.kt` (dialog restore) memberi warna eksplisit sehingga warna nonaktif tidak berlaku. Pengguna menekan tombol tanpa umpan balik. (Dugaan dari kode dan screenshot; tidak diuji dengan pembaca layar.)
+- LOW — Label kolom kata sandi di dialog restore berbunyi "Kata sandi (opsional)" padahal untuk backup terenkripsi wajib diisi.
+- LOW — Pesan hasil ("Backup tersimpan…", "Kata sandi salah…", "34 file dipulihkan…") muncul di dasar layar yang panjang; setelah menekan "Buat backup" di bagian atas, pesan tidak terlihat tanpa menggulir.
+- INFO — Jumlah file tidak konsisten: backup melaporkan 33 file, restore melaporkan 34 (arsip berisi 34 entri; manifest `nextcraft-backup.json` tampaknya dihitung hanya saat restore).
+
+Kesalahan skrip uji (bukan bug aplikasi): ketukan di luar dialog menutupnya; satu ketukan salah koordinat membuka Setelan Gboard saat keyboard menggeser dialog; ketukan "buka kartu Recents" mengenai baris sakelar "Simpan perubahan otomatis" dan mematikannya (`auto_keep_changes` tidak ada di backup dan hanya ditulis oleh sakelar UI; thumbnail Recents sebelum ketukan masih menunjukkan aktif). Sakelar dan tema sudah dikembalikan.
+
+Belum diuji: restore backup yang memuat API key; restore dengan `android_host_tools` atau `auto_approve_all_tools` bernilai true di dalam arsip (kode meresetnya, hanya dibaca, tidak dijalankan); restore backup tidak terenkripsi; backup otomatis terjadwal.
+
+Pembersihan: berkas backup uji di `Download` dihapus, berkas sementara di `/data/local/tmp` dan `/tmp/bk` dihapus, tes JVM sementara dihapus.
