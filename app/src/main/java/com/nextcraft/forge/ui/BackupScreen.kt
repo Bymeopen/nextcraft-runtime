@@ -437,6 +437,8 @@ fun BackupScreen(state: ForgeUiState, viewModel: MainViewModel) {
 
     if (confirmRestore && pendingRestore != null) {
         val tokens = LocalForgeThemeTokens.current
+        // An encrypted backup cannot be restored without its password: the button stays off until one is typed.
+        val canRestore = !restoreEncrypted || restorePassword.isNotEmpty()
         ForgeAlertDialog(
             modifier = Modifier.forgePopIn(),
             onDismissRequest = { confirmRestore = false; pendingRestore = null },
@@ -450,7 +452,7 @@ fun BackupScreen(state: ForgeUiState, viewModel: MainViewModel) {
                             kind = ForgeFieldKind.SECRET, imeAction = ImeAction.Done,
                             value = restorePassword,
                             onValueChange = { restorePassword = it },
-                            label = { Text(stringResource(R.string.backup_password)) },
+                            label = { Text(stringResource(R.string.restore_password)) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -464,8 +466,14 @@ fun BackupScreen(state: ForgeUiState, viewModel: MainViewModel) {
                         pendingRestore = null
                         scope.launch { viewModel.backup.restore(uri, restorePassword) }
                     },
-                    enabled = !restoreEncrypted || restorePassword.isNotEmpty(),
-                ) { Text(stringResource(R.string.restore_confirm), color = tokens.dangerText) }
+                    enabled = canRestore,
+                ) {
+                    // An explicit text colour ignores the button's disabled state, so dim it by hand.
+                    Text(
+                        stringResource(R.string.restore_confirm),
+                        color = if (canRestore) tokens.dangerText else scheme.onSurface.copy(alpha = 0.38f),
+                    )
+                }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmRestore = false; pendingRestore = null }) {
