@@ -283,7 +283,7 @@ Jika kompilasi atau pengujian gagal:
 ---
 
 ## 5. Guardrails Keamanan Sistem (Hardware-Level Firewall)
-Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_command|write_file|edit_file|Bash|Write|Edit`) dan `.agents/scripts/security_gate_v2.py` (mode `release` = gate aktif, `debug` = tanpa gate; ditentukan oleh env `AGENT_GATE_MODE` atau file `.agents/gate-mode`, default `release`):
+Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_command|write_file|edit_file|Bash|Write|Edit`) dan `.agents/scripts/security_gate_v2.py` (mode mengikuti tipe build aplikasi: build debug = tanpa gate, build non-debug/release = gate aktif; file `.agents/gate-mode` ditulis otomatis oleh aplikasi dan env `AGENT_GATE_MODE` dapat menimpanya per sesi):
 1. **Isolasi Workspace**: Seluruh pembuatan, pengeditan, dan build proyek wajib berada di dalam `$guestWorkspacePath`.
 2. **Larangan Perintah Destruktif**: Memblokir `rm -rf /`, `rm -rf ~`, `mkfs`, `dd` ke perangkat blok, fork bomb, serta modifikasi `/proc/sys/kernel/unprivileged_bpf_disabled`.
 3. **Memory & Skill Guard**: Memindai otomatis setiap penulisan ke file memori/skill untuk memblokir kebocoran token, kunci privat, *prompt injection*, dan menjaga kuota `< 24 KB`.
@@ -323,9 +323,11 @@ Diperkuat secara otomatis oleh `.agents/hooks.json` (`PreToolUse` pada `run_comm
             }
         }
 
+        // Gate mode follows the app build: debug builds run agents ungated, non-debug (release) builds enforce the gate.
+        val gateMode = if (com.nextcraft.forge.BuildConfig.DEBUG) "debug\n" else "release\n"
         val gateModeFile = File(agentsDir, "gate-mode")
-        if (!gateModeFile.isFile) {
-            runCatching { gateModeFile.writeText("release\n") }
+        if (runCatching { gateModeFile.takeIf { it.isFile }?.readText() }.getOrNull() != gateMode) {
+            runCatching { gateModeFile.writeText(gateMode) }
         }
         val claudeSettings = File(File(workspace, ".claude"), "settings.json")
         if (!claudeSettings.isFile) {
