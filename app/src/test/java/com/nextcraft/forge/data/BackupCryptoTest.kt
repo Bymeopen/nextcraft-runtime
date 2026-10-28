@@ -137,6 +137,22 @@ class BackupCryptoTest {
     }
 
     @Test
+    fun bytesAfterTheFinalChunkAreRejected() {
+        val sealed = seal(Random(18).nextBytes(2_000), "p")
+        assertRejected(sealed + ByteArray(7) { 0x55 })
+        // A second backup spliced onto the first must not be read as a valid one either.
+        assertRejected(sealed + seal(Random(19).nextBytes(500), "p"))
+    }
+
+    @Test
+    fun truncationInsideAChunkOrItsLengthIsWrongPassword() {
+        val sealed = seal(Random(20).nextBytes(2_000), "p")
+        assertRejected(sealed.copyOf(headerSize + 100)) // inside the ciphertext
+        assertRejected(sealed.copyOf(headerSize + 2)) // inside the 4-byte length
+        assertRejected(sealed.copyOf(headerSize)) // header only, no chunk at all
+    }
+
+    @Test
     fun unicodeAndSpacedPasswordsRoundTrip() {
         val data = Random(17).nextBytes(3_000)
         val password = "kata sandi  ünïcode 密码 🔐"
