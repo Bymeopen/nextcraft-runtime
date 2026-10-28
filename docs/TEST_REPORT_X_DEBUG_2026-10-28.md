@@ -136,3 +136,27 @@ Dua pola yang saya kira bug ternyata aman: rantai `.remove(...)` di dalam `prefe
 - B: `ensurePool` kini menjalankan `savePool` dan `setActiveId` lebih dulu, lalu `removeEncrypted(providerId)` paling akhir.
 - Verifikasi: `gradle :app:testDebugUnitTest --offline` → exit 0, 365 tes, 0 gagal, 0 error, 1 dilewati. Tes ini hanya membuktikan kode masih terkompilasi dan tes yang sudah ada tidak rusak; tidak ada tes baru, karena `ApiKeyVault` bergantung pada `AndroidKeyStore` dan saya tidak memverifikasi harness JVM yang bisa menjalankannya.
 - Risiko sisa pada B: bila proses mati antara `savePool` dan `removeEncrypted`, entri legacy tertinggal. Jika pengguna kemudian menghapus semua kunci provider itu (pool menjadi kosong), `ensurePool` bisa memigrasikan entri tertinggal itu lagi dan "menghidupkan kembali" kunci lama. Jendela waktunya sangat sempit; belum ditangani.
+
+---
+
+## Tes lanjutan (ketahanan, lint, instrumentasi)
+
+Tiga commit lokal sudah dibuat (perbaikan vault, sample `compileSdk`, laporan); tidak ada push. APK `x` yang berisi perbaikan vault dipasang ulang dengan `pm install -r` (data `x` tetap; aplikasi induk tidak tersentuh).
+
+| Tes | Hasil |
+|---|---|
+| Proses dimatikan paksa (`kill -9` pada `x` yang sedang di depan) | LULUS — `ActivityManager` menghidupkan ulang activity teratas dengan pid baru (`Start proc ... for top-activity`); 0 crash, 0 ANR |
+| 3 putaran x 25 siklus lima tab (375 perpindahan) | Tidak ada bukti kebocoran, tapi tidak konklusif. PSS (setelah GC paksa) 100,5 → 125,4 MB di putaran pertama (pemanasan cache), lalu +1,7 MB dan +1,1 MB di putaran berikutnya. Java heap datar (±15,7–16,1 MB), `Views=21`, `ViewRootImpl=2` stabil. 0 crash, 0 ANR. |
+| Terminal: banjir output (`yes line \| head -n 30000; echo STRESS_OK`) | LULUS — `STRESS_OK` tampil, prompt kembali, 0 crash, 0 ANR |
+| Proses bertahan di latar belakang (Home, 55 detik, command `sleep 40` berjalan) | LULUS di level proses (pid sama). TIDAK TERVERIFIKASI di level sesi: `am start -n` tanpa flag membuat instance `MainActivity` baru (21 instance tercatat), sehingga terminal menampilkan shell baru dan `BG_DONE` tidak bisa dicek. Ini artefak skrip uji, bukan bug yang terbukti. Tidak terdeteksi foreground service (`isForeground=true` = 0), jadi proses mungkin hanya selamat karena belum dimatikan sistem. |
+| Lint (`gradle :app:lintDebug --offline`) | `BUILD SUCCESSFUL`; 0 error, 43 warning, 12 hint |
+| Tes instrumentasi `NativeSpawnProcessTest` | TIDAK DAPAT DIJALANKAN — APK `x` dan APK tes terbuild dan terpasang (`pm list instrumentation` mencantumkannya), tapi `am instrument` tidak mengeluarkan output (juga untuk target palsu) dan proses tes tidak pernah muncul; logcat kosong. Penyebab belum diketahui. |
+
+Lint, rincian (selain 29 `PluralsCandidate`, 12 `AutoboxingStateCreation`, 1 `TypographyDashes`):
+- `ConstantLocale` — `model/WorkspaceDomain.kt:34`: `Locale.getDefault()` disimpan di field statis final; tidak ikut berubah bila locale berubah saat aplikasi berjalan.
+- `LocalContextResourcesRead` — `ui/UiText.kt:56`: membaca `LocalContext.current.resources` tidak sadar konfigurasi; bisa menampilkan bahasa lama setelah pergantian bahasa di dalam aplikasi (dugaan, belum diuji lewat UI).
+- `ConfigurationScreenWidthHeight` x4 — `ui/ForgeMotion.kt:232,237`, `ui/ProjectsScreen.kt:582`.
+- `SdCardPath` — `runtime/AntigravityHermesScripts.kt:956`; `UsableSpace` — `runtime/RuntimeInstallerStacks.kt:340`.
+- `EmptySuperCall` — `ui/MainViewModel.kt:808`; `ModifierParameter` x2 — `ui/AndroidAndPreviewScreen.kt:591`, `ui/ProjectsScreen.kt:106`; `UseOfNonLambdaOffsetOverload` — `ui/ForgeBottomBar.kt:213`; `UnusedResources` — `R.string.chat_menu_changes`.
+
+Pembersihan: paket `com.nextcraft.forge.x.test` dihapus, `x` di-force-stop, berkas sementara saya di `/data/local/tmp` dihapus.
