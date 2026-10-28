@@ -268,3 +268,24 @@ Batasan:
 - Pesan sempat berada tepat di atas bilah bawah (terlihat penuh, tanpa ruang kosong di bawahnya).
 
 Pembersihan: berkas backup uji di `Download` dan berkas sementara di `/data/local/tmp` dihapus.
+
+---
+
+## Penyelidikan SIGSYS di PRoot (pengguna tanpa root) di `x`
+
+Status: DIREPRODUKSI, PENYEBAB BELUM DIKETAHUI. Tidak ada perubahan kode.
+
+Yang dilakukan: `x` diatur ke Mesin runtime = PRoot (tersimpan `runtime_engine=proot`), aplikasi di-force-stop lalu dibuka dingin, tab Terminal dibuka. Hasil: panel menampilkan `[Process completed (signal 31) - press Enter]` dan "Sesi berakhir (kode keluar -31)"; tidak ada proses anak milik `x` yang tersisa; 0 crash di buffer crash; tidak ada baris `SIGSYS`/`SYS_SECCOMP`/`Fatal signal 31` di logcat (selain audit SELinux, yang sengaja tidak dibaca). Pada setup awal tanpa root, verifikasi Python dan Android juga gagal `exit 159 (signal 31), engine proot`. Jadi kegagalan konsisten: shell guest di bawah PRoot mati seketika dengan SIGSYS.
+
+Yang sudah dibaca di kode/skrip (fakta):
+- `proot-exec.sh` memakai `exec "$PROOT" --kill-on-exit --link2symlink -0 -r "$ROOTFS" -b /dev -b /dev/pts -b /proc -b /sys ...`, memuat loader dari APK (`PROOT_LOADER`), dan mengekspor `GLIBC_TUNABLES="glibc.pthread.rseq=0"`.
+- Komentar di `RuntimeInstallerAgentsAndStacks.kt` menyebut kebijakan seccomp aplikasi Android mematikan biner Bun dengan SIGSYS karena `rseq`; program glibc selamat berkat `GLIBC_TUNABLES`.
+- `ProotAndChrootOptimizer` mengatur `PROOT_NO_SECCOMP` menurut keluarga kernel; kernel perangkat ini `5.10.269-gki` (keluarga GKI 5.10/5.15: seccomp-bpf diaktifkan).
+
+Yang TIDAK bisa dilakukan, dan alasannya:
+- Nomor syscall yang diblokir tidak didapat. Mereproduksi dari shell root (`android-shell`) atau `run-as` tidak setia: filter seccomp aplikasi dipasang zygote hanya pada proses aplikasi, dan proses yang dimulai dari shell tidak mewarisinya, jadi kegagalan hanya muncul bila proses dijalankan dari dalam proses aplikasi.
+- Tombol "Mulai ulang" pada panel terminal yang mati tidak membuat sesi baru yang bisa diamati (panel tetap sama), sehingga sesi hanya teramati lewat start dingin.
+
+Hipotesis (BELUM diuji): (a) syscall tambahan yang dipakai proot/loader (bukan hanya `rseq`) tidak ada di daftar yang diizinkan kebijakan aplikasi pada Android 16/kernel ini; (b) `PROOT_NO_SECCOMP` tidak diaktifkan pada keluarga kernel GKI 5.10 sehingga filter proot sendiri bertabrakan dengan filter aplikasi. Cara menguji: jalankan `proot-exec.sh` dengan `PROOT_NO_SECCOMP=1` dari dalam proses aplikasi dan bandingkan; ambil nomor syscall dari tombstone SIGSYS lewat tes instrumentasi atau build debug dengan logging di `NativeSpawnProcess`.
+
+Pembersihan: engine `x` dikembalikan ke Otomatis (diverifikasi `runtime_engine=auto`), berkas sementara di `/data/local/tmp` dihapus.
