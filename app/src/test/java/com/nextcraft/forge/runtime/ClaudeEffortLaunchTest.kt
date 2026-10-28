@@ -74,6 +74,9 @@ class ClaudeEffortLaunchTest {
             assertTrue(java.io.File(tempWorkspace, ".agents/scripts/skill_hub.py").isFile)
             assertTrue(java.io.File(tempWorkspace, ".agents/scripts/hermes_init.py").isFile)
             assertTrue(java.io.File(tempWorkspace, ".agents/scripts/web_and_ui_tool.py").isFile)
+            assertTrue(java.io.File(tempWorkspace, ".agents/scripts/security_gate_v2.py").isFile)
+            assertEquals("release\n", java.io.File(tempWorkspace, ".agents/gate-mode").readText())
+            assertTrue(java.io.File(tempWorkspace, ".claude/settings.json").readText().contains("security_gate_v2.py"))
             assertTrue(userMd.isFile)
             assertTrue(memoryMd.isFile)
             assertTrue(skillCreator.isFile)
@@ -89,6 +92,12 @@ class ClaudeEffortLaunchTest {
             memoryMd.writeText("# Custom Persisted Memory\n- Verified milestone 1\n")
             AntigravityCustomizations.applyWorkspace(tempWorkspace, "/workspace/demo-app")
             assertEquals("# Custom Persisted Memory\n- Verified milestone 1\n", memoryMd.readText())
+
+            // A managed script the user edited (hash differs from its .forge-managed stamp) must survive re-provisioning
+            val editedScript = java.io.File(tempWorkspace, ".agents/scripts/web_and_ui_tool.py")
+            editedScript.appendText("\n# user edit\n")
+            AntigravityCustomizations.applyWorkspace(tempWorkspace, "/workspace/demo-app")
+            assertTrue(editedScript.readText().endsWith("# user edit\n"))
         } finally {
             tempWorkspace.deleteRecursively()
         }
