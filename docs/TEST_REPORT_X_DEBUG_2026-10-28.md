@@ -160,3 +160,25 @@ Lint, rincian (selain 29 `PluralsCandidate`, 12 `AutoboxingStateCreation`, 1 `Ty
 - `EmptySuperCall` — `ui/MainViewModel.kt:808`; `ModifierParameter` x2 — `ui/AndroidAndPreviewScreen.kt:591`, `ui/ProjectsScreen.kt:106`; `UseOfNonLambdaOffsetOverload` — `ui/ForgeBottomBar.kt:213`; `UnusedResources` — `R.string.chat_menu_changes`.
 
 Pembersihan: paket `com.nextcraft.forge.x.test` dihapus, `x` di-force-stop, berkas sementara saya di `/data/local/tmp` dihapus.
+
+---
+
+## Uji lanjutan 2: bahasa di dalam aplikasi dan kripto backup
+
+### Ganti bahasa di `x` (via UI, lalu dikembalikan ke "Bawaan sistem")
+
+| Bahasa | Hasil |
+|---|---|
+| English | LULUS — tab Proyek, Alat, dan Setelan langsung berganti, termasuk teks keadaan kosong; tidak ada sisa bahasa Indonesia di layar yang dicek. 0 crash. |
+| العربية (RTL) | LULUS — tata letak dan bilah bawah dicerminkan, 0 crash, 0 ANR. Dua catatan visual (LOW): chevron di daftar Alat tetap menghadap kanan di sisi kiri layar (tidak ikut dicerminkan), dan label tab "إعداد الذكاء الاص…" terpotong. |
+
+Temuan lint `LocalContextResourcesRead` (`ui/UiText.kt:56`) tidak terbukti untuk teks statis pada English dan Arab. Skenario teks `UiText` yang sudah tampil lalu bahasa berubah tidak diuji. Bahasa Spanyol, Mandarin, Hindi, dan Rusia tidak diuji.
+
+### Tes unit kripto backup (`BackupCryptoTest`)
+
+Ditambah 7 tes (sebelumnya 5): bit ciphertext dibalik, bit tag dibalik, dua chunk ditukar, salt atau nonce prefix diubah, versi tidak didukung dan magic salah, salt/nonce unik per backup, serta password Unicode dan berspasi. Hasil: 12/12 lulus. Seluruh suite: 372 tes, 0 gagal, 0 error, 1 dilewati.
+
+Probe sementara (dihapus, tidak di-commit) memastikan temuan E:
+- Byte tambahan setelah chunk terakhir diterima begitu saja (data tetap terbaca utuh).
+- File terpotong di tengah chunk memunculkan `EOFException`, bukan `WrongPasswordException`.
+Keduanya belum diperbaiki dan tidak dikunci oleh tes permanen.
