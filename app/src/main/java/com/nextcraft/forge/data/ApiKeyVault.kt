@@ -67,7 +67,8 @@ class ApiKeyVault(context: Context) {
                 plaintexts.forEach { (storageId, secret) ->
                     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                     cipher.init(Cipher.ENCRYPT_MODE, newKey)
-                    val encrypted = cipher.doFinal(cleanSecret(secret).toByteArray(Charsets.UTF_8))
+                    // storageId matters: cleanSecret keeps the internal spaces of backup passphrases.
+                    val encrypted = cipher.doFinal(cleanSecret(secret, storageId).toByteArray(Charsets.UTF_8))
                     edit.putString("$storageId.iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
                     edit.putString("$storageId.value", Base64.encodeToString(encrypted, Base64.NO_WRAP))
                 }
@@ -239,9 +240,10 @@ class ApiKeyVault(context: Context) {
         val legacySecret = getEncrypted(providerId) ?: return emptyList()
         val legacy = ApiKeyInfo("legacy", "Primary", true)
         putEncrypted(secretKey(providerId, legacy.id), legacySecret)
-        removeEncrypted(providerId)
         savePool(providerId, listOf(legacy))
         setActiveId(providerId, legacy.id)
+        // Last: if the process dies before this, the legacy entry is only a harmless leftover, never a lost secret.
+        removeEncrypted(providerId)
         return listOf(legacy)
     }
 
