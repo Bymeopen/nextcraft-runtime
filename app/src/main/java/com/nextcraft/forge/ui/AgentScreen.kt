@@ -262,6 +262,7 @@ fun AgentScreen(
                 onStartLogin = { scope.launch { viewModel.antigravityAuth.beginLogin() } },
                 onSubmitCode = { code -> runCatching { viewModel.antigravityAuth.submitCode(code) } },
                 onCancel = { viewModel.antigravityAuth.cancel() },
+                onResolveLink = { viewModel.antigravityAuth.currentAuthorizationUrl() },
             )
         }
 
@@ -690,6 +691,7 @@ private fun AntigravityOAuthBanner(
     onStartLogin: () -> Unit,
     onSubmitCode: (String) -> Unit,
     onCancel: () -> Unit,
+    onResolveLink: () -> String?,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -726,11 +728,21 @@ private fun AntigravityOAuthBanner(
                 }
             }
             if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
+            AutoOpenSignInLink(authState.authorizationUrl)
+            AutoSubmitClipboardCode(authState.status == AntigravityAuthStatus.AWAITING_CODE) { code -> onSubmitCode(code) }
+            if (authState.authorizationUrl == null && busy) {
+                // The link is still being created or was not picked up: let the user ask for it and open the browser by hand.
+                OutlinedButton(
+                    onClick = { openSignInLink(context, null, onResolveLink) { clipboard.setText(AnnotatedString(it)) } },
+                    shape = RoundedCornerShape(100),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                ) { Text(stringResource(R.string.agent_open_browser)) }
+            }
             authState.authorizationUrl?.let { url ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ForgePrimaryButton(
                         text = stringResource(R.string.agent_open_google_sign_in),
-                        onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) } },
+                        onClick = { openUrlOrCopy(context, url) { clipboard.setText(AnnotatedString(it)) } },
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedButton(
@@ -764,7 +776,7 @@ private fun AntigravityOAuthBanner(
                         onClick = onStartLogin,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                busy -> OutlinedButton(
+                busy || authState.status == AntigravityAuthStatus.AWAITING_CODE -> OutlinedButton(
                     onClick = onCancel,
                     shape = RoundedCornerShape(100),
                     modifier = Modifier.heightIn(min = 44.dp),

@@ -40,3 +40,9 @@ Workflow menerbitkan rilis bergulir `dev-latest` berisi `nextcraft-forge-debug-<
 menawarkan apa-apa. Jalankan dari tab Actions (`Release debug build`, pilih branch). Build sebelum perubahan ini terpasang
 sebagai `com.nextcraft.forge.x` dan tidak bisa memperbarui ke package ini dari dalam aplikasi: pasang APK baru sekali
 secara manual.
+
+## Checklist lisensi sebelum publikasi
+
+1. Lampirkan `LICENSE` dan `THIRD_PARTY_NOTICES.md` pada rilis, dan pastikan tag rilis memuat kode sumber yang sama dengan APK.
+2. Jika versi dependensi, PRoot/talloc, atau isi bundle runtime berubah, perbarui bagian 5 sampai 7 di `THIRD_PARTY_NOTICES.md` dan `REUSE.toml`.
+3. Jangan mengunggah biner Claude Code atau Antigravity CLI ke rilis publik. Installer mengunduhnya langsung dari vendor (lihat `THIRD_PARTY_NOTICES.md` bagian 8).

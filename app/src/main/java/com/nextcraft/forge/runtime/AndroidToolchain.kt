@@ -15,6 +15,10 @@ internal object AndroidToolchain {
     const val TARGET_SDK = 37
     /** AGP 9.4 insists on its default Build-Tools revision being installed (a newer one is not accepted in its place). */
     const val BUILD_TOOLS_VERSION = "36.0.0"
+    const val NDK_VERSION = "29.0.14206865"
+    const val NDK_RELEASE_URL = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r29-aarch64.tar.xz"
+    const val NDK_RELEASE_SHA256 = "02e10e4ddfe8deaeb0bd0cf29d04c981ed5bc8a5d6b560ebb9e7661f472d684b"
+    const val NDK_DOWNLOAD_NOTE = "~360 MB"
     const val GRADLE_VERSION = "9.8.1"
     const val AGP_VERSION = "9.4.1"
     const val KOTLIN_VERSION = "2.4.21"
@@ -30,6 +34,7 @@ internal object AndroidToolchain {
     const val AAPT2_GUEST_PATH = "$BUILD_TOOLS_GUEST_DIR/aapt2"
     const val ANDROID_JAR_GUEST_PATH = "$SDK_GUEST_DIR/platforms/$PLATFORM/android.jar"
     const val ROBOLECTRIC_GUEST_DIR = "$SDK_GUEST_DIR/robolectric"
+    const val NDK_GUEST_DIR = "$SDK_GUEST_DIR/ndk/$NDK_VERSION"
     const val MAVEN_GUEST_DIR = "/root/maven/localMvnRepository"
     const val GRADLE_INIT_SCRIPT_GUEST_PATH = "/root/.gradle/init.d/nextcraft-android.gradle"
     const val GUEST_PATH_PREFIX = "$GRADLE_HOME_GUEST_DIR/bin:$BUILD_TOOLS_GUEST_DIR:$SDK_GUEST_DIR/cmdline-tools/latest/bin"
@@ -43,6 +48,8 @@ internal object AndroidToolchain {
     const val ANDROID_JAR_HOST_PATH = "$SDK_HOST_DIR/platforms/$PLATFORM/android.jar"
     const val GRADLE_LAUNCHER_HOST_PATH = "$GRADLE_HOST_DIR/gradle-$GRADLE_VERSION/bin/gradle"
     const val MAVEN_HOST_DIR = "root/maven/localMvnRepository"
+    const val NDK_HOST_DIR = "$SDK_HOST_DIR/ndk"
+    const val NDK_VERSION_HOST_DIR = "$NDK_HOST_DIR/$NDK_VERSION"
 
     /** Bumping this makes every installed runtime re-download the overlay; required whenever the layout changes. */
     const val TOOLS_VERSION = "sdk37.2-build-tools36-gradle9.8.1-jdk21-maven-2026.10"

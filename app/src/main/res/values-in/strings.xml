@@ -8,6 +8,9 @@
     <string name="agent_new_chat">Obrolan baru</string>
     <string name="agent_open_google_sign_in">Buka halaman masuk Google</string>
     <string name="agent_copy_link">Salin tautan</string>
+    <string name="agent_open_link_failed_copied">Tidak bisa membuka browser. Tautan sudah disalin: tempel di browser mana pun.</string>
+    <string name="agent_open_browser">Buka browser</string>
+    <string name="agent_sign_in_link_not_ready">Link masuk belum siap. Tunggu sebentar lalu coba lagi.</string>
     <string name="agent_paste_google_verification_code">Tempel kode verifikasi Google</string>
     <string name="agent_verify">Verifikasi</string>
     <string name="agent_sign_in_with_google">Masuk dengan Google (OAuth PTY resmi)</string>
@@ -258,6 +261,9 @@
     <string name="tool_ssh_stop_tunnel">Hentikan tunnel</string>
     <string name="tool_ssh_test">Uji</string>
     <string name="tool_ssh_user">Pengguna</string>
+    <string name="tool_sdk_components">Komponen SDK</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">Toolchain C/C++ JNI ARM64, Clang/LLVM, CMake &amp; Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">Stack bahasa</string>
     <string name="tool_stop">Hentikan</string>
     <string name="tool_target_command">Perintah shell</string>
@@ -912,6 +918,7 @@
     <string name="notif_setup_attention">Penyiapan runtime perlu perhatian</string>
     <string name="notif_setup_error">Penyiapan runtime mengalami galat.</string>
     <string name="rt_auth_unsupported_process">Proses masuk tidak didukung.</string>
+    <string name="rt_auth_native_spawn_missing">Build ini tidak memiliki pembantu terminal native (libforgespawn.so, butuh build dengan NDK), sehingga proses masuk tidak bisa dimulai. Pasang build rilis.</string>
     <string name="rt_auth_timeout">Waktu masuk habis. Mulai proses masuk lagi.</string>
     <string name="rt_auth_claude_failed_retry">Masuk ke Claude gagal. Mulai proses masuk lagi.</string>
     <string name="rt_auth_claude_ended">Proses masuk Claude berakhir sebelum selesai (kode %1$d).</string>

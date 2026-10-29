@@ -7,6 +7,9 @@
     <string name="agent_new_chat">محادثة جديدة</string>
     <string name="agent_open_google_sign_in">فتح تسجيل الدخول إلى Google</string>
     <string name="agent_copy_link">نسخ الرابط</string>
+    <string name="agent_open_link_failed_copied">تعذّر فتح المتصفح. تم نسخ الرابط: الصقه في أي متصفح.</string>
+    <string name="agent_open_browser">فتح المتصفح</string>
+    <string name="agent_sign_in_link_not_ready">رابط تسجيل الدخول غير جاهز بعد. انتظر قليلاً ثم حاول مرة أخرى.</string>
     <string name="agent_paste_google_verification_code">الصق رمز التحقق من Google</string>
     <string name="agent_verify">تحقق</string>
     <string name="agent_sign_in_with_google">تسجيل الدخول عبر Google (PTY OAuth الرسمي)</string>
@@ -257,6 +260,9 @@
     <string name="tool_ssh_stop_tunnel">إيقاف النفق</string>
     <string name="tool_ssh_test">اختبار</string>
     <string name="tool_ssh_user">المستخدم</string>
+    <string name="tool_sdk_components">مكونات SDK</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">أدوات ARM64 C/C++ JNI وClang/LLVM وCMake وNinja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">حزم اللغات</string>
     <string name="tool_stop">إيقاف</string>
     <string name="tool_target_command">أمر الطرفية</string>
@@ -991,6 +997,7 @@
     <string name="notif_setup_attention">إعداد بيئة التشغيل يحتاج إلى انتباهك</string>
     <string name="notif_setup_error">واجه إعداد بيئة التشغيل خطأ.</string>
     <string name="rt_auth_unsupported_process">عملية تسجيل دخول غير مدعومة.</string>
+    <string name="rt_auth_native_spawn_missing">لا يتضمن هذا الإصدار مساعد الطرفية الأصلي (libforgespawn.so، ويتطلب بناءً باستخدام NDK)، لذا لا يمكن بدء تسجيل الدخول. ثبّت إصدار الإطلاق.</string>
     <string name="rt_auth_timeout">انتهت مهلة تسجيل الدخول. ابدأ تسجيل الدخول مرة أخرى.</string>
     <string name="rt_auth_claude_failed_retry">فشل تسجيل الدخول إلى Claude. ابدأ تسجيل الدخول مرة أخرى.</string>
     <string name="rt_auth_claude_ended">انتهى تسجيل الدخول إلى Claude قبل اكتماله (الرمز %1$d).</string>

@@ -638,6 +638,9 @@ class RuntimeInstaller(internal val context: Context) {
         const val AGY_GUEST_PATH = "/root/.local/bin/agy"
         const val GITHUB_CLI_GUEST_PATH = "/root/.local/bin/gh"
         internal const val AGY_VERSION = "1.4.5"
+        /** Pinned official Antigravity CLI release, used only when the vendor manifest cannot be reached. */
+        internal const val AGY_FALLBACK_URL = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.4.5-4952523841339392/linux-arm/cli_linux_arm64.tar.gz"
+        internal const val AGY_FALLBACK_SHA512 = "cf60004b48015a2737dcb56ce11227fef3a722f2e9329c13318e290951e350c395118bd8680c1042b2fdee9d2ead05fb84bb2596fa2d0012a44bc068655d34eb"
         const val CORE_MISSING_MESSAGE =
             "The base Ubuntu runtime (Core) is not installed or is incomplete. Run the runtime setup first, then retry."
         internal const val GITHUB_CLI_VERSION = "2.100.0"
@@ -792,18 +795,13 @@ class RuntimeInstaller(internal val context: Context) {
             sha256 = "c2dab14270aae62b21243109a5a6e75af7d0c6821fda6264b91f973e18f3ddfb",
             compressedBytes = 74_457_771L,
         )
-        internal const val CLAUDE_BUNDLED_VERSION = "2.1.308"
+        /** Last Claude Code release this build was tested with; used only when npm cannot be reached. Downloaded from the vendor, never bundled. */
+        internal const val CLAUDE_FALLBACK_VERSION = "2.1.308"
         internal const val CLAUDE_GUEST_PATH = "/usr/local/bin/claude"
         /** Where the npm package lands under PRoot; CLAUDE_GUEST_PATH becomes a symlink into it. */
         internal const val CLAUDE_NPM_GUEST_DIR = "/usr/local/lib/claude-code"
         /** Last @anthropic-ai/claude-code release shipping cli.js (2.1.113+ only download the Bun binary). */
         internal const val CLAUDE_NPM_VERSION = "2.1.112"
-        internal val CLAUDE_BUNDLE = RuntimeBundle(
-            label = "Claude Code",
-            fileName = "nextcraft-claude-arm64-2026.10.2.tar.zst",
-            sha256 = "cc479f683e0e581e055d6fa2c033897c1aa6e306b6c065c9cff9e65e55c8e7a4",
-            compressedBytes = 102_137_744L,
-        )
         internal val PYTHON_BUNDLE = RuntimeBundle(
             label = "Python",
             fileName = "nextcraft-python-arm64-2026.10.2.tar.zst",
@@ -822,12 +820,6 @@ class RuntimeInstaller(internal val context: Context) {
             fileName = "nextcraft-dsh-arm64-2026.10.2.tar.zst",
             sha256 = "0036adeef3f30a7b535821e7f4594c3a296ff16f7dfbbcaec6b93bc6ef44ff25",
             compressedBytes = 90_508_623L,
-        )
-        internal val AGY_BUNDLE = RuntimeBundle(
-            label = "Antigravity CLI",
-            fileName = "nextcraft-agy-arm64-2026.10.2.tar.zst",
-            sha256 = "0a3e344817ada663f5cb79b0b86707fd76581cef794194d31dc360ec5b5d889b",
-            compressedBytes = 48_493_274L,
         )
         internal const val ROOT_GRANT_TIMEOUT_SECONDS = 45L
         internal const val ENV_CLEANUP_POLL_MS = 1_000L

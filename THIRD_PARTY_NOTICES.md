@@ -3,14 +3,18 @@
 ## 1. Licensing of NextCraft Forge (`com.nextcraft.forge`)
 **NextCraft Forge** as a combined work is distributed under the **GNU General Public License v3.0 only** (`LICENSE`, SPDX: `GPL-3.0-only`), because it links the GPLv3 Termux terminal emulator libraries listed below.
 
-Starting with the **NextCraft Forge v2.0 Clean-Room Sovereign Architecture**, the core Android host application (`com.nextcraft.forge.*`), Dual-Engine supervisor (`Root Chroot` + `Non-Root PRoot`), native JNI spawner (`libforgespawn.so`), loopback protocol gateways, Compose UI system, Hermes-Lite v2 cognitive memory, and Forge MCP / Reference Index suite are authored and maintained as a sovereign codebase for NextCraft Forge.
+NextCraft Forge began as a derivative of **Mobile Harness** (`techjarves/Mobile-Harness`, MIT; see Section 3) and has since been extensively modified and extended. A file-level comparison against upstream commit `96b1da0` found 36 same-named Kotlin files sharing 4,188 of 54,763 non-test lines (~7.6%, after normalising the package name), with no file identical and the closest at ~75% (`DshRuntimeBridge.kt`). The native JNI spawner `forge_spawn.c` also shares lines with upstream `pocket_spawn.c`. The remaining code, the Forge MCP server, and the Reference Index (Section 4) are original work of the NextCraft Forge authors.
 
 | Component | License | Notice Location |
 | :--- | :--- | :--- |
 | **NextCraft Forge (combined work)** | `GPL-3.0-only` | `LICENSE` |
 | **Termux `terminal-emulator` & `terminal-view` (`v0.118.0`)** | `GPL-3.0-only` (Apache-2.0 portions by Jack Palevich) | Section 2 below |
-| **Mobile Harness (Conceptual & Historical Inspiration + MIT Notice)** | `MIT` | Section 3 below |
+| **Mobile Harness (upstream of derived files + MIT Notice)** | `MIT` | Section 3 below |
 | **XERJ (`xerj-org/xerj` — Conceptual Inspiration for Reference Indexing)** | Conceptual Inspiration | Section 4 below |
+| **PRoot `v5.5.0` (bundled `libproot.so`, `libproot_loader.so`)** | `GPL-2.0-or-later` | Section 5 below |
+| **talloc `2.4.3` (statically linked into PRoot)** | `LGPL-3.0-or-later` | Section 5 below |
+| **Maven runtime dependencies** | `Apache-2.0`, `BSD-2-Clause` | Section 6 below |
+| **Runtime bundles downloaded on first run** | various (see table) | Section 7 below |
 
 ---
 
@@ -22,8 +26,8 @@ Starting with the **NextCraft Forge v2.0 Clean-Room Sovereign Architecture**, th
 
 ---
 
-## 3. Mobile Harness (`techjarves/Mobile-Harness` — Conceptual & Historical Inspiration)
-- **Acknowledgement:** Early prototypes of NextCraft Forge were inspired by and adapted concepts from **Mobile Harness** (https://github.com/techjarves/Mobile-Harness) regarding on-device Linux container packaging and mobile CLI agent workflows. In **NextCraft Forge v2.0**, the application architecture, Dual-Engine supervisor (`Ubuntu 24.04.5 LTS` Root Chroot + Non-Root PRoot), loopback gateways, domain models, and Compose UI were re-engineered in a clean-room sovereign rewrite. We retain the upstream MIT copyright and permission notice below in full respect of the project's historical lineage and MIT license compatibility with GPLv3:
+## 3. Mobile Harness (`techjarves/Mobile-Harness` — Upstream of Derived Files)
+- **Acknowledgement:** Parts of NextCraft Forge are derived from **Mobile Harness** (https://github.com/techjarves/Mobile-Harness), including the runtime bridges, installer/setup services, API-key vault, loopback format gateways, GitHub client, Markdown renderer, and the native spawner, which were renamed from `com.jarves.mh` to `com.nextcraft.forge` and then modified. The upstream MIT copyright and permission notice is retained in full below, as the MIT License requires for copies or substantial portions of the Software. MIT is compatible with distributing the combined work under GPL-3.0-only.
 
 ```text
 MIT License
@@ -53,3 +57,53 @@ SOFTWARE.
 
 ## 4. XERJ (`xerj-org/xerj` — Conceptual Inspiration)
 - **Acknowledgement:** The **Forge Reference Index (`forge_reference_index.py`)** and its 5 MCP tools (`forge_reference_autoindex`, `forge_reference_search`, `forge_reference_def`, `forge_reference_batch_search`, `forge_reference_gain`) were written 100% from scratch in Python 3 using standard-library `sqlite3` (FTS5 BM25) and custom regex symbol extractors. We credit **`xerj-org/xerj`** purely as conceptual inspiration for equipping coding agents with local BM25 passage search, symbol definition lookup, and token-efficiency telemetry. No source code, schema, or assets from `xerj` are used or distributed in NextCraft Forge.
+
+---
+
+## 5. PRoot and talloc (bundled native binaries)
+- **Component:** `app/src/main/jniLibs/arm64-v8a/libproot.so` and `libproot_loader.so`, static ARM64 build of **PRoot v5.5.0** (https://github.com/proot-me/proot), statically linked with **talloc 2.4.3** (https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz). Built reproducibly by `scripts/runtime-bundles/build-proot-static.sh`, which pins the source versions and the talloc SHA-256.
+- **License:** PRoot is `GPL-2.0-or-later` (the binary reports "licensed under GPL v2 or later"); talloc is `LGPL-3.0-or-later`. Both are compatible with GPL-3.0-only distribution.
+- **Distribution Requirement:** Ship the corresponding source (or a written offer) for PRoot and talloc together with any binary distribution. The build script above plus the pinned upstream tag/tarball satisfy this for the unmodified sources.
+- **Copyright:** The PRoot Developers; the Samba Team (talloc).
+
+---
+
+## 6. Maven Runtime Dependencies
+Licenses below were read from the artifacts' POM metadata (`<license>` element).
+
+| Artifact | Version | License |
+| :--- | :--- | :--- |
+| `androidx.*` (core-ktx, work, appcompat, lifecycle, activity-compose, Compose BOM libraries incl. material3) | see `app/build.gradle.kts` | `Apache-2.0` |
+| `com.google.android.material:material` | `1.14.0` | `Apache-2.0` |
+| `org.jetbrains.kotlinx:kotlinx-coroutines-core` / `-android` | `1.11.0` | `Apache-2.0` |
+| `org.apache.commons:commons-compress` | `1.28.0` | `Apache-2.0` |
+| `io.github.kyant0:backdrop` | `2.0.1` | `Apache-2.0` |
+| `com.github.luben:zstd-jni` | `1.5.7-24` | `BSD-2-Clause` |
+
+The Gradle Wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) is `Apache-2.0`, copyright the original Gradle authors.
+
+---
+
+## 7. Runtime Bundles (not inside the APK; downloaded on first run)
+The APK contains only the app, `libproot*.so`, and scripts. The first-run installer downloads the `.tar.zst` bundles below (Core, Android, Python, DeepSeek) from the project release `https://github.com/bymeopen/nextcraft-forge/releases/download/runtime-2026.10.2` (`RuntimeInstaller.kt`, `RuntimeBundle`), verified by pinned SHA-256. Hosting them there is **redistribution** by this project. Builders live in `scripts/runtime-bundles/`.
+
+| Bundle | Contents (per build script) | License / status |
+| :--- | :--- | :--- |
+| `nextcraft-core-arm64` | Ubuntu Base 24.04.5 (`ubuntu-base-24.04.5-base-arm64.tar.gz`), Node.js `v24.22.1`, `git curl wget unzip zip xz-utils zstd jq ripgrep` | Ubuntu packages: GPL/LGPL/others, per-package copyright in `/usr/share/doc/*/copyright` inside the rootfs. Node.js: MIT. Corresponding source for GPL/LGPL packages is available from Ubuntu (`archive.ubuntu.com`); keep this reference with any redistribution. |
+| `nextcraft-android-arm64` | Temurin JDK `21.0.12.1+1`, Gradle `9.8.1`, Android SDK Platform `37.2`, Build-Tools `36.0.0` (Java parts from Google; native `aapt`, `aapt2`, `aidl`, `zipalign`, ... from `lzhiyong/android-sdk-tools` `35.0.2`), offline Maven repository | JDK: GPL-2.0 with Classpath Exception. Gradle: Apache-2.0. Android SDK components: Android Software Development Kit License (Google). `lzhiyong/android-sdk-tools`: Apache-2.0 (GitHub repository metadata). Maven repository: per-artifact licenses. |
+| `nextcraft-python-arm64` | Python runtime (`build-python-bundle.sh`) | Overlay of the files `apt-get install python3 python3-pip python3-venv` adds to the Core rootfs (Ubuntu noble, Python 3.12): PSF License for CPython, plus the licenses of the other Ubuntu packages (see Core row). Not itemised per package. |
+| `nextcraft-dsh-arm64` | DeepSeek harness `dsh` `0.2.1-rc.2` | npm package `@deepseek-ai/dsh` (repo `deepseek-ai/deepseek-harness`) declares `MIT` for the top-level package; its npm dependencies are resolved at build time and their licenses are **not itemised**. |
+
+**Not bundled (downloaded from the vendor):** Claude Code (`downloads.claude.ai`, SHA-256 from the vendor manifest; on the PRoot engine `@anthropic-ai/claude-code@2.1.112` from npm) and Antigravity CLI (`storage.googleapis.com/antigravity-public`, SHA-512 from the vendor manifest). Both are proprietary (Claude Code: `© Anthropic PBC. All rights reserved`, use subject to Anthropic's legal agreements); this project neither builds nor hosts their binaries, and users accept the vendors' terms when they sign in and use them.
+
+Additional tools installed by the user inside the guest through `apt`/`pip`/`npm` (for example `qemu-user`, `frida`, `unicorn`, `openssh-client`, `gh` v2.100.0) are fetched from their official sources and are not redistributed by this project.
+
+---
+
+## 8. Distribution Compliance (GitHub Releases only)
+- **Channel:** APK and runtime bundles are distributed only through GitHub Releases of `bymeopen/nextcraft-forge`; the app is not published on Google Play. GPL obligations apply to GitHub distribution just as to any other channel.
+- **Source offer (GPL-3.0 / GPL-2.0+ / LGPL-3.0+):** The complete corresponding source of NextCraft Forge is the repository at the release tag. Source for PRoot v5.5.0 and talloc 2.4.3 is the pinned upstream tag/tarball in `scripts/runtime-bundles/build-proot-static.sh`. Source for the Ubuntu packages inside the Core/Python bundles is available from `archive.ubuntu.com` (Ubuntu 24.04 `noble`). Each release must attach or link `LICENSE` and this file.
+- **Termux terminal libraries (GPL-3.0):** linked into the APK; the APK is therefore GPL-3.0-only and must be accompanied by this notice and the source (see Section 2).
+- **Trademarks:** Claude, Claude Code, Anthropic, Antigravity, Google, DeepSeek, Ubuntu, Canonical, Termux, and Android are trademarks of their respective owners. This project is independent and unaffiliated; names are used only to identify compatibility.
+- **Proprietary third-party agents (resolved by design):** Claude Code and Antigravity CLI are not re-hosted. The installer downloads them directly from the vendors' official URLs and verifies checksums (`installClaudeRelease`, `installAgyRelease`), so no redistribution permission is needed. Do not re-introduce project-hosted bundles of these binaries; `OfficialAgentSourcesTest` guards against it.
+- **User-supplied credentials:** The app stores and uses API keys and accounts supplied by the user; users must comply with each provider's terms of service.

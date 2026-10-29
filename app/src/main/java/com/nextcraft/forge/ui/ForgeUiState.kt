@@ -157,6 +157,7 @@ data class ForgeUiState(
     val setupSnapshot: RuntimeSetupSnapshot = RuntimeSetupSnapshot(),
     val selectedDevStacks: Set<DevStack> = setOf(DevStack.WEB, DevStack.PYTHON, DevStack.ANDROID),
     val installedDevStacks: Set<DevStack> = emptySet(),
+    val ndkInstalled: Boolean = false,
     val installedAgents: Set<AgentKind> = emptySet(),
     val agentUpdates: Map<AgentKind, AgentUpdateInfo> = emptyMap(),
     /** Which Settings card owns the progress of the current runtime operation. */
