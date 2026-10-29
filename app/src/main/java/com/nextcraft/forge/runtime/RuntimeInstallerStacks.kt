@@ -289,9 +289,8 @@ internal suspend fun RuntimeInstaller.installRuntimeOverlay(
     from: Float,
     to: Float,
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
-    forceEmbedded: Boolean = false,
 ) {
-    val preferEmbedded = forceEmbedded || isAssetAvailable("runtime/${bundle.fileName}")
+    val preferEmbedded = isAssetAvailable("runtime/${bundle.fileName}")
     val archive = obtainRuntimeBundle(bundle, preferEmbedded = preferEmbedded, from = from, to = to * 0.8f + from * 0.2f, onProgress = onProgress)
     onProgress(RuntimeInstallProgress(message, to * 0.8f + from * 0.2f, indeterminate = true))
     try {

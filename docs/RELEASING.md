@@ -45,4 +45,4 @@ secara manual.
 
 1. Lampirkan `LICENSE` dan `THIRD_PARTY_NOTICES.md` pada rilis, dan pastikan tag rilis memuat kode sumber yang sama dengan APK.
 2. Jika versi dependensi, PRoot/talloc, atau isi bundle runtime berubah, perbarui bagian 5 sampai 7 di `THIRD_PARTY_NOTICES.md` dan `REUSE.toml`.
-3. Jangan mengunggah bundle Claude Code atau Antigravity CLI ke rilis publik tanpa izin tertulis vendor (lihat `THIRD_PARTY_NOTICES.md` bagian 8).
+3. Jangan mengunggah biner Claude Code atau Antigravity CLI ke rilis publik. Installer mengunduhnya langsung dari vendor (lihat `THIRD_PARTY_NOTICES.md` bagian 8).
