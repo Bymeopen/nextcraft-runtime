@@ -221,6 +221,8 @@ fun RuntimeInstaller.clearGitHubAccess() {
  */
 fun RuntimeInstaller.hasClaudeLoginCredential(): Boolean {
     val file = File(rootfs, "root/.claude/.credentials.json")
+    if (file.isFile && runCatching { file.readText().contains("\"refreshToken\"") }.getOrDefault(false)) return true
+    if (!RuntimeEngines.isRootEngine()) return false
     val quoted = shellSingleQuote(file.absolutePath)
     return runCatching {
         val process = ProcessBuilder("su", "-c", "grep -q '\"refreshToken\"' $quoted").start()

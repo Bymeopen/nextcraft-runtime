@@ -261,6 +261,7 @@ class AntigravityRuntimeBridge(
         val convId: String?,
     )
 
+    private val standbyLock = Any()
     @Volatile private var standbyInstance: WarmAgyInstance? = null
     @Volatile private var standbyEpoch = 0L
     private val warmSupportCacheFile = File(context.filesDir, "agy-warm-mode")
@@ -345,13 +346,18 @@ class AntigravityRuntimeBridge(
 
     private fun armStandbyEvictionTimer(instance: WarmAgyInstance) {
         applyPowerAffinityProfile(lowPowerStandby = true)
-        val epoch = ++standbyEpoch
+        val epoch = synchronized(standbyLock) { ++standbyEpoch }
         Thread {
             runCatching { Thread.sleep(WARM_STANDBY_TTL_MS) }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
-            if (standbyEpoch == epoch && standbyInstance === instance) {
-                standbyInstance = null
-                disposeWarmInstance(instance)
+            val evicted = synchronized(standbyLock) {
+                if (standbyEpoch == epoch && standbyInstance === instance) {
+                    standbyInstance = null
+                    instance
+                } else {
+                    null
+                }
             }
+            if (evicted != null) disposeWarmInstance(evicted)
         }.apply { isDaemon = true }.start()
     }
 
@@ -525,9 +531,12 @@ class AntigravityRuntimeBridge(
             fun persistConvId(id: String) =
                 saveConversationId(projectId, SavedConversation(id, conversationHistory.size + 1).encode())
 
-            val prevWarm = standbyInstance
-            standbyInstance = null
-            standbyEpoch++
+            val prevWarm = synchronized(standbyLock) {
+                val prev = standbyInstance
+                standbyInstance = null
+                standbyEpoch++
+                prev
+            }
             val reusableWarm = prevWarm?.takeIf {
                 supportsWarmStdin == true &&
                     it.proc.isAlive &&
@@ -738,7 +747,7 @@ class AntigravityRuntimeBridge(
                     effortLevel = selectedEffort,
                     convId = SavedConversation.decode(conversationId(projectId))?.id,
                 )
-                standbyInstance = warmEntry
+                synchronized(standbyLock) { standbyInstance = warmEntry }
                 preservedForWarmStandby = true
                 armStandbyEvictionTimer(warmEntry)
             } else if (sawTerminalResult) {

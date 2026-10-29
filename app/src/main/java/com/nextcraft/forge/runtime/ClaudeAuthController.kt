@@ -268,10 +268,14 @@ class ClaudeAuthController(
                     }
                     val now = android.os.SystemClock.elapsedRealtime()
                     val exited = !running.isAlive
+                    val exitZero = exited && runCatching { running.exitValue() }.getOrDefault(-1) == 0
                     val looksDone = clean.contains("login successful", true) || clean.contains("logged in as", true)
                     if (exited || looksDone || now - lastCredentialCheck > CREDENTIAL_POLL_MS) {
                         lastCredentialCheck = now
-                        if ((exited || looksDone || mutableState.value.status == ClaudeAuthStatus.COMPLETING) && hasCredential()) {
+                        val allowedToFinish = looksDone ||
+                            mutableState.value.status == ClaudeAuthStatus.COMPLETING ||
+                            (exitZero && (stateBeforeLogin == null || mutableState.value.status == ClaudeAuthStatus.AWAITING_BROWSER))
+                        if (allowedToFinish && hasCredential()) {
                             val account = readAccountEmail()
                             account?.let { com.nextcraft.forge.data.AppPreferences(context).claudeAccountEmail = it }
                             mutableState.value = ClaudeAuthState(
