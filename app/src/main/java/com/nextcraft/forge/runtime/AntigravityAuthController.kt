@@ -485,7 +485,7 @@ private fun findAccountEmail(terminalText: String): String? =
         .map { it.value }
         .firstOrNull { !it.endsWith(".apps.googleusercontent.com", ignoreCase = true) }
 
-private fun stripAnsiSequences(raw: String): String {
+internal fun stripAnsiSequences(raw: String): String {
     val withoutCodes = raw.replace(ANSI_CSI_OSC_PATTERN, "")
     val sb = StringBuilder(withoutCodes.length)
     for (ch in withoutCodes) {
