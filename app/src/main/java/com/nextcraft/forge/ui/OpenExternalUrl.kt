@@ -82,3 +82,13 @@ internal fun AutoSubmitClipboardCode(awaitingCode: Boolean, onCode: (String) -> 
         }
     }
 }
+
+/** Backs the "open browser" button: uses the known link, asks [resolve] for one that was not picked up yet, or says it is not ready. */
+internal fun openSignInLink(context: Context, known: String?, resolve: () -> String?, copyToClipboard: (String) -> Unit) {
+    val url = known ?: resolve()
+    if (url == null) {
+        Toast.makeText(context, R.string.agent_sign_in_link_not_ready, Toast.LENGTH_LONG).show()
+        return
+    }
+    openUrlOrCopy(context, url, copyToClipboard)
+}

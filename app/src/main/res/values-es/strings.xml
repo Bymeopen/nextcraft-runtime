@@ -8,6 +8,8 @@
     <string name="agent_open_google_sign_in">Abrir inicio de sesión de Google</string>
     <string name="agent_copy_link">Copiar enlace</string>
     <string name="agent_open_link_failed_copied">No se pudo abrir el navegador. El enlace se copió: pégalo en cualquier navegador.</string>
+    <string name="agent_open_browser">Abrir navegador</string>
+    <string name="agent_sign_in_link_not_ready">El enlace de inicio de sesión aún no está listo. Espera un momento e inténtalo de nuevo.</string>
     <string name="agent_paste_google_verification_code">Pegar código de verificación de Google</string>
     <string name="agent_verify">Verificar</string>
     <string name="agent_sign_in_with_google">Iniciar sesión con Google (PTY OAuth oficial)</string>

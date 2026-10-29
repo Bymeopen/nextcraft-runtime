@@ -537,16 +537,22 @@ internal fun AntigravityAccountCard(
                 AutoSubmitClipboardCode(agyAuth.status == com.nextcraft.forge.runtime.AntigravityAuthStatus.AWAITING_CODE) { code ->
                     runCatching { viewModel.antigravityAuth.submitCode(code) }
                 }
-                agyAuth.authorizationUrl?.let { url ->
+                if (inFlight || agyAuth.authorizationUrl != null) {
+                    // Right under the sign-in button: opens the browser even when the automatic open did not happen.
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             shape = RoundedCornerShape(100),
-                            onClick = { openUrlOrCopy(context, url) { clipboard.setText(AnnotatedString(it)) } },
+                            onClick = {
+                                openSignInLink(context, agyAuth.authorizationUrl, { viewModel.antigravityAuth.currentAuthorizationUrl() }) {
+                                    clipboard.setText(AnnotatedString(it))
+                                }
+                            },
                             modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                        ) { Text(stringResource(R.string.agent_open_google_sign_in)) }
+                        ) { Text(stringResource(R.string.agent_open_browser)) }
                         OutlinedButton(
                             shape = RoundedCornerShape(100),
-                            onClick = { clipboard.setText(AnnotatedString(url)) },
+                            onClick = { agyAuth.authorizationUrl?.let { clipboard.setText(AnnotatedString(it)) } },
+                            enabled = agyAuth.authorizationUrl != null,
                             modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                         ) { Text(stringResource(R.string.agent_copy_link)) }
                     }

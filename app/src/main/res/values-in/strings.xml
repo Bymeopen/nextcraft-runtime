@@ -9,6 +9,8 @@
     <string name="agent_open_google_sign_in">Buka halaman masuk Google</string>
     <string name="agent_copy_link">Salin tautan</string>
     <string name="agent_open_link_failed_copied">Tidak bisa membuka browser. Tautan sudah disalin: tempel di browser mana pun.</string>
+    <string name="agent_open_browser">Buka browser</string>
+    <string name="agent_sign_in_link_not_ready">Link masuk belum siap. Tunggu sebentar lalu coba lagi.</string>
     <string name="agent_paste_google_verification_code">Tempel kode verifikasi Google</string>
     <string name="agent_verify">Verifikasi</string>
     <string name="agent_sign_in_with_google">Masuk dengan Google (OAuth PTY resmi)</string>

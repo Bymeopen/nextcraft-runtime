@@ -8,6 +8,8 @@
     <string name="agent_open_google_sign_in">打开 Google 登录</string>
     <string name="agent_copy_link">复制链接</string>
     <string name="agent_open_link_failed_copied">无法打开浏览器。链接已复制,请粘贴到任意浏览器中。</string>
+    <string name="agent_open_browser">打开浏览器</string>
+    <string name="agent_sign_in_link_not_ready">登录链接尚未就绪,请稍等片刻后重试。</string>
     <string name="agent_paste_google_verification_code">粘贴 Google 验证码</string>
     <string name="agent_verify">验证</string>
     <string name="agent_sign_in_with_google">使用 Google 登录（官方 PTY OAuth）</string>

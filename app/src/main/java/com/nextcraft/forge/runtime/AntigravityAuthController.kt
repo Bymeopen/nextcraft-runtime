@@ -161,6 +161,8 @@ class AntigravityAuthController(
                     }
                     val unreadBytes = ptyProc.outputFile.length() - readCursor
                     if (unreadBytes <= 0L) {
+                        // The BROWSER helper writes the link after the last screen update, so it must also be polled while idle.
+                        publishBrowserHelperUrl()
                         delay(80L)
                         continue
                     }
@@ -317,6 +319,23 @@ class AntigravityAuthController(
             verificationCodeSent = false
         }
     }
+
+    /** Offers the link the BROWSER helper recorded, once, while the login is still starting or waiting for the code. */
+    private fun publishBrowserHelperUrl(): String? {
+        val current = authStateFlow.value
+        if (current.authorizationUrl != null) return current.authorizationUrl
+        if (current.status != AntigravityAuthStatus.STARTING) return null
+        val url = readBrowserHelperUrl() ?: return null
+        authStateFlow.value = AntigravityAuthState(
+            status = AntigravityAuthStatus.AWAITING_CODE,
+            authorizationUrl = url,
+            message = UiText.res(R.string.rt_auth_agy_open_link),
+        )
+        return url
+    }
+
+    /** For the "open browser" button: the link of the running login, re-read on demand when the poll has not seen it yet. */
+    fun currentAuthorizationUrl(): String? = authStateFlow.value.authorizationUrl ?: publishBrowserHelperUrl()
 
     private fun readBrowserHelperUrl(): String? = runCatching {
         browserUrlFile.takeIf(File::isFile)?.readText()?.trim()?.takeIf { it.length < 4_096 && isGoogleSignInUrl(it) }

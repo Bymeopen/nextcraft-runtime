@@ -8,6 +8,8 @@
     <string name="agent_open_google_sign_in">Google साइन-इन खोलें</string>
     <string name="agent_copy_link">लिंक कॉपी करें</string>
     <string name="agent_open_link_failed_copied">ब्राउज़र नहीं खुल सका। लिंक कॉपी हो गया है: इसे किसी भी ब्राउज़र में पेस्ट करें।</string>
+    <string name="agent_open_browser">ब्राउज़र खोलें</string>
+    <string name="agent_sign_in_link_not_ready">साइन-इन लिंक अभी तैयार नहीं है। थोड़ी देर रुककर फिर कोशिश करें।</string>
     <string name="agent_paste_google_verification_code">Google वेरिफिकेशन कोड पेस्ट करें</string>
     <string name="agent_verify">वेरिफाई करें</string>
     <string name="agent_sign_in_with_google">Google से साइन इन करें (Official PTY OAuth)</string>
