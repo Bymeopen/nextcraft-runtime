@@ -730,7 +730,7 @@ private fun AntigravityOAuthBanner(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ForgePrimaryButton(
                         text = stringResource(R.string.agent_open_google_sign_in),
-                        onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) } },
+                        onClick = { openUrlOrCopy(context, url) { clipboard.setText(AnnotatedString(it)) } },
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedButton(

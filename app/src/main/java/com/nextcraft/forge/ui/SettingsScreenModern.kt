@@ -531,7 +531,7 @@ internal fun AntigravityAccountCard(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             shape = RoundedCornerShape(100),
-                            onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) } },
+                            onClick = { openUrlOrCopy(context, url) { clipboard.setText(AnnotatedString(it)) } },
                             modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                         ) { Text(stringResource(R.string.agent_open_google_sign_in)) }
                         OutlinedButton(

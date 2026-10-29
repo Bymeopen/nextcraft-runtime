@@ -7,6 +7,7 @@
     <string name="agent_new_chat">محادثة جديدة</string>
     <string name="agent_open_google_sign_in">فتح تسجيل الدخول إلى Google</string>
     <string name="agent_copy_link">نسخ الرابط</string>
+    <string name="agent_open_link_failed_copied">تعذّر فتح المتصفح. تم نسخ الرابط: الصقه في أي متصفح.</string>
     <string name="agent_paste_google_verification_code">الصق رمز التحقق من Google</string>
     <string name="agent_verify">تحقق</string>
     <string name="agent_sign_in_with_google">تسجيل الدخول عبر Google (PTY OAuth الرسمي)</string>
