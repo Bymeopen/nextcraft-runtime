@@ -2,6 +2,7 @@ package com.nextcraft.forge.runtime
 
 import android.content.Context
 import android.os.SystemClock
+import com.nextcraft.forge.BuildConfig
 import com.nextcraft.forge.R
 import com.nextcraft.forge.model.AgentKind
 import com.nextcraft.forge.ui.UiText
@@ -38,6 +39,9 @@ class AntigravityAuthController(
     val state: StateFlow<AntigravityAuthState> = authStateFlow.asStateFlow()
 
     private val ptyTranscriptFile = File(context.cacheDir, "antigravity-auth-output.log")
+
+    /** Debug builds only: what the login loop sees (state counters plus the last screen text), for diagnosing a stuck sign-in. */
+    private val debugSnapshotFile = File(context.cacheDir, "antigravity-auth-debug.txt")
 
     /** Where /opt/nextcraft/open-url.sh records the link agy hands to its BROWSER helper (shared with the Claude login). */
     private val browserUrlFile = File(RuntimeInstaller.bridgeRootDir(context), "claude-login-url")
@@ -129,6 +133,7 @@ class AntigravityAuthController(
             }
             proc
         } catch (err: Throwable) {
+            if (BuildConfig.DEBUG) writeDebugSnapshot("spawn failed ${err::class.java.simpleName}: ${err.message}", null)
             authStateFlow.value = AntigravityAuthState(
                 status = AntigravityAuthStatus.ERROR,
                 message = err.toUiText(R.string.rt_auth_agy_start_failed),
@@ -147,6 +152,7 @@ class AntigravityAuthController(
         var acceptedPrivacy = false
         var trustedFolder = false
         val timeoutAtMs = SystemClock.elapsedRealtime() + OAUTH_FLOW_TIMEOUT_MS
+        var idleTicks = 0
 
         fun writePtyInput(payload: String) {
             ptyProc.outputStream.write(payload.encodeToByteArray())
@@ -163,6 +169,9 @@ class AntigravityAuthController(
                     if (unreadBytes <= 0L) {
                         // The BROWSER helper writes the link after the last screen update, so it must also be polled while idle.
                         publishBrowserHelperUrl()
+                        if (BuildConfig.DEBUG && ++idleTicks % 25 == 0) {
+                            writeDebugSnapshot("idle alive=${ptyProc.isAlive} outLen=${ptyProc.outputFile.length()} read=$readCursor handshakes=$sentHandshakes picker=$advancedLoginPicker status=${authStateFlow.value.status}", null)
+                        }
                         delay(80L)
                         continue
                     }
@@ -182,6 +191,9 @@ class AntigravityAuthController(
                     }
 
                     val strippedText = stripAnsiSequences(rawBuffer.toString()).takeLast(40_000)
+                    if (BuildConfig.DEBUG) {
+                        writeDebugSnapshot("chunk alive=${ptyProc.isAlive} outLen=${ptyProc.outputFile.length()} read=$readCursor handshakes=$sentHandshakes picker=$advancedLoginPicker status=${authStateFlow.value.status} url=${authStateFlow.value.authorizationUrl != null}", strippedText.takeLast(3_000))
+                    }
 
                     if (sentHandshakes < 5 &&
                         rawBuffer.length - lastHandshakePos > 200 &&
@@ -301,6 +313,7 @@ class AntigravityAuthController(
             }
             throw ce
         } catch (err: Throwable) {
+            if (BuildConfig.DEBUG) writeDebugSnapshot("error ${err::class.java.simpleName}: ${err.message}", null)
             if (authStateFlow.value.status != AntigravityAuthStatus.SIGNED_IN) {
                 authStateFlow.value = AntigravityAuthState(
                     status = AntigravityAuthStatus.ERROR,
@@ -318,6 +331,10 @@ class AntigravityAuthController(
             activePtyProc = null
             verificationCodeSent = false
         }
+    }
+
+    private fun writeDebugSnapshot(header: String, screen: String?) {
+        runCatching { debugSnapshotFile.writeText("$header\n${screen.orEmpty()}") }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
     }
 
     /** Offers the link the BROWSER helper recorded, once, while the login is still starting or waiting for the code. */
