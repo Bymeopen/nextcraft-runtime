@@ -258,6 +258,9 @@
     <string name="tool_ssh_stop_tunnel">Hentikan tunnel</string>
     <string name="tool_ssh_test">Uji</string>
     <string name="tool_ssh_user">Pengguna</string>
+    <string name="tool_sdk_components">Komponen SDK</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">Toolchain C/C++ JNI ARM64, Clang/LLVM, CMake &amp; Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">Stack bahasa</string>
     <string name="tool_stop">Hentikan</string>
     <string name="tool_target_command">Perintah shell</string>

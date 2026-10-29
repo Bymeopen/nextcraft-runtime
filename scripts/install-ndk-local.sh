@@ -9,6 +9,7 @@ set -euo pipefail
 
 NDK_URL="https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r29-aarch64.tar.xz"
 SDK_ROOT="${SDK_ROOT:-/root/android-sdk}"
+NDK_SHA256="${NDK_SHA256:-02e10e4ddfe8deaeb0bd0cf29d04c981ed5bc8a5d6b560ebb9e7661f472d684b}"
 NDK_DIR="$SDK_ROOT/ndk"
 
 if [ "$(uname -m)" != "aarch64" ]; then

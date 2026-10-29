@@ -117,7 +117,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
+            "command": "if [ -n \"${'$'}{CLAUDE_PROJECT_DIR:-}\" ] && [ -f \"${'$'}CLAUDE_PROJECT_DIR/.agents/scripts/security_gate_v2.py\" ]; then python3 \"${'$'}CLAUDE_PROJECT_DIR/.agents/scripts/security_gate_v2.py\"; elif [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; elif [ -f .agents/scripts/security_gate_v2.py ]; then python3 .agents/scripts/security_gate_v2.py; else g=\"${'$'}(git rev-parse --show-toplevel 2>/dev/null || true)\"; if [ -n \"${'$'}g\" ] && [ -f \"${'$'}g/.agents/scripts/security_gate_v2.py\" ]; then python3 \"${'$'}g/.agents/scripts/security_gate_v2.py\"; else python3 .agents/scripts/security_gate_v2.py; fi; fi",
             "timeout": 5
           }
         ]
@@ -139,7 +139,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
+            "command": "if [ -n \"${'$'}{CLAUDE_PROJECT_DIR:-}\" ] && [ -f \"${'$'}CLAUDE_PROJECT_DIR/.agents/scripts/security_gate_v2.py\" ]; then python3 \"${'$'}CLAUDE_PROJECT_DIR/.agents/scripts/security_gate_v2.py\"; elif [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; elif [ -f .agents/scripts/security_gate_v2.py ]; then python3 .agents/scripts/security_gate_v2.py; else g=\"${'$'}(git rev-parse --show-toplevel 2>/dev/null || true)\"; if [ -n \"${'$'}g\" ] && [ -f \"${'$'}g/.agents/scripts/security_gate_v2.py\" ]; then python3 \"${'$'}g/.agents/scripts/security_gate_v2.py\"; else python3 .agents/scripts/security_gate_v2.py; fi; fi",
             "timeout": 5
           }
         ]

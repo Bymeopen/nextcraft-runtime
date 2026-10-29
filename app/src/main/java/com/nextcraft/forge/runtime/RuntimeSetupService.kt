@@ -338,6 +338,8 @@ class RuntimeSetupService : Service() {
                         }
                         ACTION_INSTALL_STACK -> stacks.forEach { installer.ensureStackInstalled(it, onProgress) }
                         ACTION_REMOVE_STACK -> stacks.forEach { installer.removeStack(it, onProgress) }
+                        ACTION_INSTALL_NDK -> installer.ensureNdkInstalled(onProgress)
+                        ACTION_REMOVE_NDK -> installer.removeNdk(onProgress)
                         else -> installer.ensureInstalled(stacks, agent, onProgress)
                     }
                     if (action == ACTION_START) AppPreferences(this@RuntimeSetupService).runtimeSetupComplete = true
@@ -364,7 +366,7 @@ class RuntimeSetupService : Service() {
         // Installs resume from their .part files after process death; a replayed removal would delete again what the
         // user may have reinstalled since, so removals are not redelivered.
         return when (intent?.action) {
-            ACTION_REMOVE_AGENT, ACTION_REMOVE_STACK -> START_NOT_STICKY
+            ACTION_REMOVE_AGENT, ACTION_REMOVE_STACK, ACTION_REMOVE_NDK -> START_NOT_STICKY
             else -> START_REDELIVER_INTENT
         }
     }
@@ -501,6 +503,8 @@ class RuntimeSetupService : Service() {
         const val ACTION_REMOVE_AGENT = "com.nextcraft.forge.REMOVE_AGENT"
         const val ACTION_INSTALL_STACK = "com.nextcraft.forge.INSTALL_STACK"
         const val ACTION_REMOVE_STACK = "com.nextcraft.forge.REMOVE_STACK"
+        const val ACTION_INSTALL_NDK = "com.nextcraft.forge.INSTALL_NDK"
+        const val ACTION_REMOVE_NDK = "com.nextcraft.forge.REMOVE_NDK"
         const val EXTRA_VERSION = "target_version"
         const val ACTION_STOP = "com.nextcraft.forge.STOP_SETUP"
         const val EXTRA_STACKS = "selected_stacks"
