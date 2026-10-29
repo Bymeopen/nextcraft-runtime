@@ -18,6 +18,9 @@ internal class NativeSpawnProcess private constructor(
     private val outputPump: Thread? = null,
     private val delegateProcess: Process? = null,
 ) : Process() {
+    /** False when libforgespawn.so is missing and this wraps a plain ProcessBuilder process: no pseudo-terminal, no controlling tty. */
+    internal val isNativeSpawn: Boolean get() = delegateProcess == null
+
     private val waitLock = Any()
     @Volatile private var result: Int? = null
 

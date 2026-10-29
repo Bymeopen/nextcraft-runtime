@@ -7,6 +7,9 @@
     <string name="agent_new_chat">नई चैट</string>
     <string name="agent_open_google_sign_in">Google साइन-इन खोलें</string>
     <string name="agent_copy_link">लिंक कॉपी करें</string>
+    <string name="agent_open_link_failed_copied">ब्राउज़र नहीं खुल सका। लिंक कॉपी हो गया है: इसे किसी भी ब्राउज़र में पेस्ट करें।</string>
+    <string name="agent_open_browser">ब्राउज़र खोलें</string>
+    <string name="agent_sign_in_link_not_ready">साइन-इन लिंक अभी तैयार नहीं है। थोड़ी देर रुककर फिर कोशिश करें।</string>
     <string name="agent_paste_google_verification_code">Google वेरिफिकेशन कोड पेस्ट करें</string>
     <string name="agent_verify">वेरिफाई करें</string>
     <string name="agent_sign_in_with_google">Google से साइन इन करें (Official PTY OAuth)</string>
@@ -926,6 +929,7 @@
     <string name="notif_setup_attention">Runtime सेटअप पर ध्यान चाहिए</string>
     <string name="notif_setup_error">Runtime सेटअप में error आया।</string>
     <string name="rt_auth_unsupported_process">असमर्थित साइन-इन प्रक्रिया।</string>
+    <string name="rt_auth_native_spawn_missing">इस बिल्ड में नेटिव टर्मिनल हेल्पर (libforgespawn.so, जिसे NDK बिल्ड चाहिए) नहीं है, इसलिए साइन-इन शुरू नहीं हो सकता। रिलीज़ बिल्ड इंस्टॉल करें।</string>
     <string name="rt_auth_timeout">साइन-इन का समय खत्म हो गया। साइन-इन दोबारा शुरू करें।</string>
     <string name="rt_auth_claude_failed_retry">Claude साइन-इन विफल रहा। साइन-इन दोबारा शुरू करें।</string>
     <string name="rt_auth_claude_ended">Claude साइन-इन पूरा होने से पहले खत्म हो गया (code %1$d)।</string>

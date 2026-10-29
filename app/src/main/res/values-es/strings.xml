@@ -7,6 +7,9 @@
     <string name="agent_new_chat">Nuevo chat</string>
     <string name="agent_open_google_sign_in">Abrir inicio de sesión de Google</string>
     <string name="agent_copy_link">Copiar enlace</string>
+    <string name="agent_open_link_failed_copied">No se pudo abrir el navegador. El enlace se copió: pégalo en cualquier navegador.</string>
+    <string name="agent_open_browser">Abrir navegador</string>
+    <string name="agent_sign_in_link_not_ready">El enlace de inicio de sesión aún no está listo. Espera un momento e inténtalo de nuevo.</string>
     <string name="agent_paste_google_verification_code">Pegar código de verificación de Google</string>
     <string name="agent_verify">Verificar</string>
     <string name="agent_sign_in_with_google">Iniciar sesión con Google (PTY OAuth oficial)</string>
@@ -943,6 +946,7 @@
     <string name="notif_setup_attention">La configuración del entorno requiere atención</string>
     <string name="notif_setup_error">La configuración del entorno encontró un error.</string>
     <string name="rt_auth_unsupported_process">Proceso de inicio de sesión no compatible.</string>
+    <string name="rt_auth_native_spawn_missing">Esta compilación no incluye el asistente de terminal nativo (libforgespawn.so, requiere compilar con NDK), por lo que no se puede iniciar sesión. Instala una compilación de lanzamiento.</string>
     <string name="rt_auth_timeout">Se agotó el tiempo del inicio de sesión. Inicia sesión de nuevo.</string>
     <string name="rt_auth_claude_failed_retry">Falló el inicio de sesión de Claude. Inicia sesión de nuevo.</string>
     <string name="rt_auth_claude_ended">El inicio de sesión de Claude terminó antes de completarse (código %1$d).</string>

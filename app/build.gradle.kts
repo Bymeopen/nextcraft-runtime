@@ -16,6 +16,20 @@ android {
         // The release workflow passes -PversionCode=... -PversionName=...; local builds keep the defaults.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 100
         versionName = (project.findProperty("versionName") as String?) ?: "1.0.0-forge"
+        // Side-by-side test builds (not the PRoot edition) carry a stamp so each build can be told apart on the device:
+        // Settings shows versionName as "<version>-x.<git sha>[+dirty].<stamp>", versionCode comes from -Pnextcraft.buildCode.
+        // The stamp is passed on the command line (not read from the clock here) so the configuration cache cannot reuse a stale one.
+        (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() && it != "proot" }?.let { suffix ->
+            fun git(vararg args: String): String = providers.exec {
+                commandLine("git", *args)
+                isIgnoreExitValue = true
+            }.standardOutput.asText.get().trim()
+            val sha = git("rev-parse", "--short", "HEAD").ifEmpty { "nogit" }
+            val dirty = if (git("status", "--porcelain").isNotEmpty()) "+dirty" else ""
+            val stamp = (project.findProperty("nextcraft.buildStamp") as String?) ?: "dev"
+            versionName = "$versionName-$suffix.$sha$dirty.$stamp"
+            (project.findProperty("nextcraft.buildCode") as String?)?.toIntOrNull()?.let { versionCode = it }
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -119,6 +133,14 @@ android {
     // -PrequireNdk makes a missing NDK a build error rather than a silent fallback to ProcessBuilder.
     if (!ndkAvailable && project.hasProperty("requireNdk")) {
         throw GradleException("NDK not found (set ANDROID_NDK_HOME); libforgespawn.so would be skipped.")
+    }
+    // Phones without an NDK (the on-device build host) cannot compile libforgespawn.so. -Pnextcraft.prebuiltJniDir=<dir>
+    // (holding arm64-v8a/libforgespawn.so, e.g. copied from an installed release build) packages it into debug builds
+    // so the native spawner and its pseudo-terminal are used instead of the ProcessBuilder fallback.
+    if (!ndkAvailable) {
+        (project.findProperty("nextcraft.prebuiltJniDir") as String?)?.takeIf { it.isNotBlank() }?.let { dir ->
+            sourceSets.getByName("debug").jniLibs.srcDir(dir)
+        }
     }
     if (ndkAvailable) {
         // AGP prefers its own default NDK and fails when only another version is installed,
