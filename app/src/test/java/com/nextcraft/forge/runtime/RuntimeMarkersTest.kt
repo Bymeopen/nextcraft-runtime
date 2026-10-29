@@ -1,15 +1,19 @@
 package com.nextcraft.forge.runtime
 
 import java.io.File
-import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class RuntimeMarkersTest {
-    private fun rootfs(): File = Files.createTempDirectory("rootfs").toFile()
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private fun rootfs(): File = tmp.newFolder()
 
     @Test
     fun legacyMarkerIsCopiedAndKept() {

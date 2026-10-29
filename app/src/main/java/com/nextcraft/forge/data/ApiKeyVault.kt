@@ -36,8 +36,9 @@ class ApiKeyVault(context: Context) {
      * Decryption of the old key only works shortly after an unlock, so this retries on each launch
      * until it succeeds and never deletes anything on failure.
      */
-    @Synchronized
-    private fun migrateAuthBoundKeyIfNeeded() {
+    private fun migrateAuthBoundKeyIfNeeded() { synchronized(MIGRATION_LOCK) {
+        // Process-wide lock: the vault is constructed in many places, and two instances migrating at once could
+        // delete each other's new keystore alias (both derive it from the clock) and orphan every secret.
         runCatching {
             val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             if (!keyStore.containsAlias(alias)) return
@@ -83,7 +84,7 @@ class ApiKeyVault(context: Context) {
         }.onFailure { error ->
             android.util.Log.w("ApiKeyVault", "Keystore migration deferred: ${error::class.simpleName}")
         }
-    }
+    } }
 
     @Synchronized
     fun put(providerId: String, secret: String) {
@@ -298,6 +299,7 @@ class ApiKeyVault(context: Context) {
     private companion object {
         const val LEGACY_KEY_ALIAS = "nextcraft-provider-key"
         const val KEY_ALIAS_PREF = "keystore.alias"
+        val MIGRATION_LOCK = Any()
     }
 }
 

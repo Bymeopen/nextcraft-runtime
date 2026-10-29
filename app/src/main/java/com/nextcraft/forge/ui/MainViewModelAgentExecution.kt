@@ -398,7 +398,8 @@ internal fun MainViewModel.startRun(project: Project, chatId: String, prompt: Qu
         chatTitle = updatedChats.firstOrNull { it.id == chatId }?.title ?: "Main chat",
         bridge = bridge,
         ownsBridge = true,
-        lastPrompt = QueuedPrompt(text = cleanPrompt, attachments = attachments, projectId = project.id, chatId = chatId),
+        // Keeps the prompt id: tryAutoRetry's one-shot guard (autoRetriedPrompts) is keyed on it across resends.
+        lastPrompt = QueuedPrompt(id = prompt.id, text = cleanPrompt, attachments = attachments, projectId = project.id, chatId = chatId),
         isolated = isolated,
         agent = agent,
         tried = tried,
@@ -608,7 +609,8 @@ fun MainViewModel.retryLastPrompt() {
     }
     _state.update { it.copy(retryPrompts = it.retryPrompts - retry.chatId) }
     // The failed turn's message is already in the history: send it again without adding a second bubble.
-    startRun(project, retry.chatId, retry.prompt.copy(projectId = project.id, chatId = retry.chatId), resend = true)
+    // A fresh id: a manual retry earns its own one-shot automatic retry.
+    startRun(project, retry.chatId, retry.prompt.copy(id = UUID.randomUUID().toString(), projectId = project.id, chatId = retry.chatId), resend = true)
 }
 
 /** Stops the Android build of [projectId] (defaults to the active project); a running agent session keeps going. */

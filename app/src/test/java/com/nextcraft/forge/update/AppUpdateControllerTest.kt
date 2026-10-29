@@ -21,13 +21,15 @@ class AppUpdateControllerTest {
         var result: () -> AppUpdateInfo? = { null }
         var downloadSteps: List<Pair<Long, Long>> = emptyList()
         var downloadFails: Throwable? = null
+        /** Called after each simulated download step, so a test can sample the controller state between steps. */
+        var afterStep: () -> Unit = {}
         var installFails: Throwable? = null
         val checks = mutableListOf<String>()
         var installed: File? = null
         override fun check(manifestUrlOverride: String): AppUpdateInfo? { checks += manifestUrlOverride; return result() }
         override fun download(info: AppUpdateInfo, progress: (Long, Long) -> Unit): File {
             downloadFails?.let { throw it }
-            downloadSteps.forEach { (d, t) -> progress(d, t) }
+            downloadSteps.forEach { (d, t) -> progress(d, t); afterStep() }
             return File("/tmp/app.apk")
         }
         override fun install(apk: File) { installFails?.let { throw it }; installed = apk }
@@ -170,7 +172,12 @@ class AppUpdateControllerTest {
         val r = Rig(src)
         r.source.result = { info }
         r.controller.checkNow()
+        // Sample the published progress after every simulated step.
+        val seen = mutableListOf<Float?>()
+        src.afterStep = { seen += r.state.progress }
         r.controller.downloadAndInstall()
+        // 0, 1/1000 and 5/1000 are all 0 %, so the first step publishes 0f and the rest keep it; only 100 % publishes 1f.
+        assertEquals("progress after each step: $seen", listOf(0f, 0f, 0f, 0f, 1f), seen)
         assertEquals(File("/tmp/app.apk"), src.installed)
         assertNull(r.state.progress)
         assertEquals(msg(R.string.upd_installing, "1.2.3"), r.state.statusMessage)

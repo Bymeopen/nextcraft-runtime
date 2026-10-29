@@ -35,7 +35,7 @@ adb_cmd() {
   exit 1
 }
 adb_cmd wait-for-device
-adb_cmd shell "su -c 'id -u'" | grep -qx 0 || { echo "ADB root is unavailable" >&2; exit 1; }
+adb_cmd shell "su -c 'id -u'" | grep -x 0 >/dev/null || { echo "ADB root is unavailable" >&2; exit 1; }
 
 temp_dir="$(mktemp -d)"
 # The rootfs gets /dev, /dev/pts, proc and sys bind-mounted below. If a run fails with those still mounted, the next
