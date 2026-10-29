@@ -38,6 +38,9 @@ class AntigravityAuthController(
     val state: StateFlow<AntigravityAuthState> = authStateFlow.asStateFlow()
 
     private val ptyTranscriptFile = File(context.cacheDir, "antigravity-auth-output.log")
+
+    /** Where /opt/nextcraft/open-url.sh records the link agy hands to its BROWSER helper (shared with the Claude login). */
+    private val browserUrlFile = File(RuntimeInstaller.bridgeRootDir(context), "claude-login-url")
     private val signoutScratchFile = File(context.cacheDir, "antigravity-logout-output.log")
 
     @Volatile private var activePtyProc: Process? = null
@@ -97,6 +100,7 @@ class AntigravityAuthController(
         )
         verificationCodeSent = false
         ptyTranscriptFile.delete()
+        browserUrlFile.delete() // never offer a link left over from an earlier login
 
         val ptyProc = try {
             val env = rtInstaller.installedRuntime()
@@ -201,7 +205,8 @@ class AntigravityAuthController(
                         }
                     }
 
-                    val detectedAuthUrl = extractGoogleOAuthUrl(strippedText)
+                    // Newer agy releases pass the link to the BROWSER helper instead of printing it in a form the screen scraper finds.
+                    val detectedAuthUrl = extractGoogleOAuthUrl(strippedText) ?: readBrowserHelperUrl()
                     if (detectedAuthUrl != null && authStateFlow.value.authorizationUrl == null) {
                         authStateFlow.value = AntigravityAuthState(
                             status = AntigravityAuthStatus.AWAITING_CODE,
@@ -312,6 +317,10 @@ class AntigravityAuthController(
             verificationCodeSent = false
         }
     }
+
+    private fun readBrowserHelperUrl(): String? = runCatching {
+        browserUrlFile.takeIf(File::isFile)?.readText()?.trim()?.takeIf { it.length < 4_096 && isGoogleSignInUrl(it) }
+    }.getOrNull()
 
     @Synchronized
     fun submitCode(code: String) {
@@ -466,4 +475,11 @@ private fun stripAnsiSequences(raw: String): String {
         }
     }
     return sb.toString()
+}
+
+/** The browser helper's file is writable from the chroot, so only accept Google's own OAuth endpoint. */
+internal fun isGoogleSignInUrl(url: String): Boolean {
+    val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+    return uri.scheme == "https" && uri.host.equals("accounts.google.com", ignoreCase = true) &&
+        "client_id=" in url && "code_challenge=" in url
 }

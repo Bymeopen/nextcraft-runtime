@@ -726,6 +726,8 @@ private fun AntigravityOAuthBanner(
                 }
             }
             if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
+            AutoOpenSignInLink(authState.authorizationUrl)
+            AutoSubmitClipboardCode(authState.status == AntigravityAuthStatus.AWAITING_CODE) { code -> onSubmitCode(code) }
             authState.authorizationUrl?.let { url ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ForgePrimaryButton(

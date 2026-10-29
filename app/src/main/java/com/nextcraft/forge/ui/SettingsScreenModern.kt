@@ -527,6 +527,10 @@ internal fun AntigravityAccountCard(
                     enabled = !inFlight,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                AutoOpenSignInLink(agyAuth.authorizationUrl)
+                AutoSubmitClipboardCode(agyAuth.status == com.nextcraft.forge.runtime.AntigravityAuthStatus.AWAITING_CODE) { code ->
+                    runCatching { viewModel.antigravityAuth.submitCode(code) }
+                }
                 agyAuth.authorizationUrl?.let { url ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
