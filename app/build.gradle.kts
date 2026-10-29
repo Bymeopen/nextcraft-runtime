@@ -7,8 +7,12 @@ plugins {
 
 android {
     namespace = "com.nextcraft.forge"
+    // CI installs the android-37.0 platform, so the default must stay 37.0 (same as `compileSdk = 37`). A device whose SDK
+    // only has android-37.2 (NextCraft Forge) builds with -Pnextcraft.compileSdkMinor=2 or the same line in ~/.gradle/gradle.properties.
     compileSdk {
-        version = release(37) { minorApiLevel = 2 }
+        version = release(37) {
+            minorApiLevel = (project.findProperty("nextcraft.compileSdkMinor") as String?)?.toIntOrNull() ?: 0
+        }
     }
 
     defaultConfig {
