@@ -527,6 +527,12 @@ internal fun AntigravityAccountCard(
                     enabled = !inFlight,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // While the login is starting or finishing nothing else can be tapped, so it must be cancellable here.
+                if (inFlight) {
+                    ForgeTextButton(onClick = { viewModel.antigravityAuth.cancel() }, modifier = Modifier.align(Alignment.End)) {
+                        Text(stringResource(R.string.agent_cancel))
+                    }
+                }
                 AutoOpenSignInLink(agyAuth.authorizationUrl)
                 AutoSubmitClipboardCode(agyAuth.status == com.nextcraft.forge.runtime.AntigravityAuthStatus.AWAITING_CODE) { code ->
                     runCatching { viewModel.antigravityAuth.submitCode(code) }

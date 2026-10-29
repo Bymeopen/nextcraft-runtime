@@ -766,7 +766,7 @@ private fun AntigravityOAuthBanner(
                         onClick = onStartLogin,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                busy -> OutlinedButton(
+                busy || authState.status == AntigravityAuthStatus.AWAITING_CODE -> OutlinedButton(
                     onClick = onCancel,
                     shape = RoundedCornerShape(100),
                     modifier = Modifier.heightIn(min = 44.dp),

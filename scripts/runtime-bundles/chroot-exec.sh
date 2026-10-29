@@ -396,6 +396,10 @@ forward_signal() {
 SETSID=""
 if [ ! -t 0 ] && command -v setsid >/dev/null 2>&1; then
     SETSID="setsid"
+elif [ -t 0 ] && ! (: </dev/tty) 2>/dev/null && command -v setsid >/dev/null 2>&1; then
+    # su started by an app hands the shell its pty without making it the controlling terminal, so a TUI that opens
+    # /dev/tty itself (agy 1.4.x) fails with ENXIO. setsid -c makes the pty the command's controlling terminal.
+    SETSID="setsid -c"
 fi
 
 # Ends whatever a stopped or failed command left behind (a dev server, a watcher, a helper): TERM, a short grace period, KILL.
