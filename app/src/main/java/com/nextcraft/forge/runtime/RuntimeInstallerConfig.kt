@@ -150,7 +150,7 @@ echo "started pid ${'$'}! (log: ${'$'}log)"
     ensureSystemGitTrust()
     applyAndroidHostTools()
     ForgeMcpServer.apply(rootfs) { file, body -> writeRootfsFileAtomically(file, body, mode = 0b111101101) }
-    ProotAndChrootOptimizer.applyGuestWrappers(rootfs) { file, body, mode -> writeRootfsFileAtomically(file, body, mode = mode) }
+    ChrootOptimizer.removeLegacyProotWrappers(rootfs)
     val managedMcp = runCatching { ConnectorStore(context).mcpServersJson() }.getOrNull()
     AntigravityCustomizations.apply(rootfs, mcpServers = managedMcp) { file, body -> writeRootfsFileAtomically(file, body, mode = 0b110100100) }
     runCatching {

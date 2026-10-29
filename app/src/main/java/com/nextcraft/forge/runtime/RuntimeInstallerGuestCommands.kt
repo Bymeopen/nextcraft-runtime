@@ -244,7 +244,7 @@ internal fun RuntimeInstaller.actionableProcessError(output: String, fallback: S
     val chrootError = lines.firstOrNull {
         it.startsWith("chroot:") || it.startsWith("mount:") || it.contains("Permission denied", ignoreCase = true)
     }
-    // A silent failure (binary killed by a signal, proot refusing to start) leaves no output: the exit code is
+    // A silent failure (binary killed by a signal, chroot refusing to start) leaves no output: the exit code is
     // then the only clue. Shells report a signal as 128+N.
     val exitHint = exitCode?.takeIf { it != 0 }?.let { code ->
         val signal = if (code > 128) " (signal ${code - 128})" else ""

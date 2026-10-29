@@ -41,3 +41,6 @@ __pycache__/
 *.p12
 *.pem
 .kotlin/
+
+# Local project memory written by NextCraft Forge (not for the repo)
+.forge/

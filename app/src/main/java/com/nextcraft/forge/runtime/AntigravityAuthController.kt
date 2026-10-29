@@ -65,7 +65,6 @@ class AntigravityAuthController(
     fun hasOfficialCredential(): Boolean {
         val tokenPath = resolveOAuthTokenFile()
         if (tokenPath.isFile && tokenPath.length() > 0L) return true
-        if (!RuntimeEngines.isRootEngine()) return false
         val escapedPath = shellSingleQuote(tokenPath.absolutePath)
         return runCatching {
             val checkProc = ProcessBuilder("su", "-c", "test -s $escapedPath").start()
@@ -401,7 +400,7 @@ class AntigravityAuthController(
         try {
             val tokenFile = resolveOAuthTokenFile()
             if (tokenFile.exists()) tokenFile.delete()
-            if (RuntimeEngines.isRootEngine() && hasOfficialCredential()) {
+            if (hasOfficialCredential()) {
                 val escaped = shellSingleQuote(tokenFile.absolutePath)
                 runCatching {
                     val rmProc = ProcessBuilder("su", "-c", "rm -f $escaped").start()
@@ -429,6 +428,9 @@ class AntigravityAuthController(
 
     fun cancel() {
         val proc = activePtyProc
+        // Publish the cancelled state before the process dies: the session loop reads the status once it sees the exit,
+        // and would otherwise report "exited early" over the cancellation.
+        authStateFlow.value = snapshotPriorToLogin ?: AntigravityAuthState(AntigravityAuthStatus.SIGNED_OUT)
         if (proc != null) {
             Thread {
                 runCatching {
@@ -439,7 +441,6 @@ class AntigravityAuthController(
                 }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
             }.apply { isDaemon = true }.start()
         }
-        authStateFlow.value = snapshotPriorToLogin ?: AntigravityAuthState(AntigravityAuthStatus.SIGNED_OUT)
     }
 
     fun invalidateSession(message: UiText) {

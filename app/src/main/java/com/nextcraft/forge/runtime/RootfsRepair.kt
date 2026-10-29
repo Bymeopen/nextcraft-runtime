@@ -50,8 +50,6 @@ internal object RootfsRepair {
      */
     fun ensureUnmounted(targetDir: File): Boolean {
         if (!targetDir.exists()) return true
-        // PRoot never mounts anything (bindings are ptrace path translations), and without root nothing could unmount.
-        if (!RuntimeEngines.isRootEngine()) return true
         val canonicalPath = runCatching { targetDir.canonicalPath }.getOrDefault(targetDir.absolutePath).trimEnd('/')
         require(canonicalPath.length > 1 && canonicalPath.startsWith("/")) {
             "Refusing to operate on invalid rootfs path: '$canonicalPath'"
@@ -108,8 +106,6 @@ internal object RootfsRepair {
      */
     fun reclaimOwnership(target: File, uid: Int, recursive: Boolean = true): Boolean {
         if (!target.exists() && !java.nio.file.Files.isSymbolicLink(target.toPath())) return true
-        // Under PRoot every guest process already runs as the app UID, so nothing is ever root-owned.
-        if (!RuntimeEngines.isRootEngine()) return true
         val canonicalPath = target.canonicalPath.trimEnd('/')
         require(canonicalPath.length > 1 && canonicalPath.startsWith("/")) {
             "Refusing to change ownership of invalid path: '$canonicalPath'"
@@ -193,9 +189,13 @@ internal object RootfsRepair {
         val exit = runRootCommand(
             "su",
             "-c",
-            // --one-file-system only: a plain `rm -rf` fallback would follow a mount that appeared after
-            // ensureUnmounted into the user's projects or shared storage.
-            "rm -rf --one-file-system -- $quotedPath",
+            // find -xdev -depth -delete: Android's toybox rm has no --one-file-system ("Unknown option", exit 1, which made
+            // every stack removal fail). -xdev never crosses into a mount that appeared after ensureUnmounted, and -delete
+            // unlinks symlinks instead of following them.
+            // stderr goes to logcat (tag RootfsRepair, last 5 lines) so a partial failure (EBUSY, busy mount) is diagnosable;
+            // the exit code of find is preserved for the caller.
+            "err=$(find $quotedPath -xdev -depth -delete 2>&1 >/dev/null); rc=$?; " +
+                "[ -n \"\$err\" ] && log -t RootfsRepair \"\$(echo \"\$err\" | tail -n 5)\"; exit \$rc",
             // A multi-GB tree with root-owned apt/npm files takes far longer than the 15 s default; a timeout here
             // used to make activate() roll back a rootfs that had already validated.
             timeoutSeconds = 30 * 60L,

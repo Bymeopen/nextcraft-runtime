@@ -106,9 +106,6 @@ internal fun ChatRoutingSheet(
                         horizontalPadding = 0.dp,
                     )
                 }
-                if (state.activeChatRunning) {
-                    Text(text = stringResource(R.string.route_single_busy), fontSize = ForgeType.secondary, color = palette.onSurfaceVariant)
-                }
             } else {
                 val sectionHeaderRes = if (cfg.mode == RouteMode.MANUAL) R.string.route_agents_manual else R.string.route_agents_priority
                 Text(

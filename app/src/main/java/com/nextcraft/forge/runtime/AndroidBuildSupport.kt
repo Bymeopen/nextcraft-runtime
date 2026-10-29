@@ -368,8 +368,6 @@ internal fun diagnoseAndroidBuildFailure(output: String, exitCode: Int): String 
 internal fun hasAndroidLogcatAccess(context: Context): Boolean {
     val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_LOGS) == PackageManager.PERMISSION_GRANTED
     if (hasPermission) return true
-    if (!RuntimeEngines.isRootEngine()) return false
-
     return runCatching {
         val checkProc = ProcessBuilder("su", "-c", "id -u").redirectErrorStream(true).start()
         if (!checkProc.waitFor(1_500L, TimeUnit.MILLISECONDS)) {
@@ -400,7 +398,7 @@ internal fun startPackageLogcatProcess(
     }
 
     val directPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_LOGS) == PackageManager.PERMISSION_GRANTED
-    return if (!directPermission && RuntimeEngines.isRootEngine()) {
+    return if (!directPermission) {
         val cleanTime = timeArg.replace("'", "")
         ProcessBuilder("su", "-c", "/system/bin/logcat --uid=$appUid -v threadtime -T '$cleanTime'")
             .redirectErrorStream(true)

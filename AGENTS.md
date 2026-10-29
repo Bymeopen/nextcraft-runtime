@@ -19,7 +19,7 @@
   - Digest sebelum `/compact`: `python3 .agents/scripts/context_compressor.py`
 
 ### B. Snapshot Sistem & Target Platform Universal
-- **Lingkungan Runtime**: Ubuntu 24.04.5 LTS ARM64 (Root Chroot / Non-Root PRoot fallback) di NextCraft Forge, dilengkapi emulasi `run-x86` (Box64) dan *Host Android Bridge* (`android-shell`, `android-dumpsys`, `android-screencap`, `keep-running`).
+- **Lingkungan Runtime**: Ubuntu 24.04.5 LTS ARM64 (Root Chroot) di NextCraft Forge, dilengkapi emulasi `run-x86` (Box64) dan *Host Android Bridge* (`android-shell`, `android-dumpsys`, `android-screencap`, `keep-running`).
 - **Dukungan Platform (Universal / Sesuai Permintaan User)**:
   1. **Web & Cloud Frontend**: HTML5/CSS3/TS, React, Next.js, Vue, Nuxt, Svelte, Astro, Tailwind CSS, WebGL/Canvas.
   2. **Backend, Server & Database**: Node.js/Bun, Python (FastAPI/Django/Flask), Go, Rust, PHP/Laravel, Java/Spring, C#/.NET, GraphQL, gRPC, SQL/NoSQL (PostgreSQL, MySQL, SQLite/Room, MongoDB, Redis).

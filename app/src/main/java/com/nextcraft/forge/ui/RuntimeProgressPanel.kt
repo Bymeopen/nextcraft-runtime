@@ -35,6 +35,9 @@ internal fun formatTransfer(downloadedBytes: Long?, totalBytes: Long?): String? 
     return "%.1f / %.1f MB".format(downloadedBytes / BYTES_PER_MIB, totalBytes / BYTES_PER_MIB)
 }
 
+/** Same "x.y MB" (MiB) unit as [formatTransfer], so the size shown before a download matches its progress. */
+internal fun formatDownloadSize(bytes: Long): String = "%.1f MB".format(bytes / BYTES_PER_MIB)
+
 @Composable
 internal fun RuntimeProgressPanel(
     snapshot: RuntimeSetupSnapshot,

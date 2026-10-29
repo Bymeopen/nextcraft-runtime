@@ -12,7 +12,7 @@ import org.json.JSONObject
  *    UI/UX design token generation (Compose, Tailwind, SwiftUI, Flutter, Desktop), SVG vector
  *    generation, Mermaid blueprint generation, Android live screen/UI hierarchy inspection
  *    (via `android-shell` / `android-screencap`), and local web preview inspection.
- * 2. `/opt/nextcraft/bin/forge-playwright-mcp`: ARM64 chroot/proot wrapper for `@playwright/mcp`
+ * 2. `/opt/nextcraft/bin/forge-playwright-mcp`: ARM64 chroot wrapper for `@playwright/mcp`
  *    that automatically injects `--headless --no-sandbox` and resolves system Chromium if installed.
  * 3. `toDshCordisPatchYaml`: Translates `ConnectorStore.mcpServersJson()` into DeepSeek Harness
  *    (`$DSH_HOME/cordis.patch.yml`) `@deepseek-ai/dsh-mcp-client` plugin declarations so all three
@@ -30,7 +30,7 @@ internal object ForgeMcpServer {
     private val VALID_DSH_SERVER_NAME = Regex("^[A-Za-z0-9_-]{1,32}$")
 
     val UVX_WRAPPER_SH: String = """#!/bin/sh
-# ARM64 Android Chroot/PRoot wrapper for uvx (Python MCP package runner):
+# ARM64 Android Chroot wrapper for uvx (Python MCP package runner):
 # Delegates to native uvx when installed, or auto-installs/runs via pip/venv inside /root/.cache/forge-uvx.
 for bin in /root/.local/bin/uvx /usr/local/bin/uvx /usr/bin/uvx; do
     if [ -x "${'$'}bin" ]; then
@@ -67,8 +67,8 @@ exec python3 -m "${'$'}(printf '%s' "${'$'}entry" | tr '-' '_')" "${'$'}@"
 """
 
     val PLAYWRIGHT_WRAPPER_SH: String = """#!/bin/sh
-# ARM64 Android Chroot/PRoot wrapper for @playwright/mcp:
-# Enforces --headless and --no-sandbox (required inside Android chroot/proot namespaces)
+# ARM64 Android Chroot wrapper for @playwright/mcp:
+# Enforces --headless and --no-sandbox (required inside Android chroot namespaces)
 # and binds system Chromium if available on ARM64.
 for bin in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome; do
     if [ -x "${'$'}bin" ]; then

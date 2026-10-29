@@ -118,7 +118,6 @@ import com.nextcraft.forge.runtime.findDebugApk
 import com.nextcraft.forge.runtime.hasAndroidLogcatAccess
 import com.nextcraft.forge.runtime.inferAndroidBuildStage
 import com.nextcraft.forge.runtime.RuntimeEngine
-import com.nextcraft.forge.runtime.RuntimeEngineChoice
 import com.nextcraft.forge.runtime.RuntimeEngines
 import com.nextcraft.forge.runtime.parseAndroidBuildIssues
 import com.nextcraft.forge.runtime.readBoundedText
@@ -326,15 +325,6 @@ fun MainViewModel.validateProviderConnection() {
     }
 }
 
-
-/** Stores the engine choice and re-detects, so the onboarding row and the next launch follow it. */
-fun MainViewModel.setRuntimeEngineChoice(id: String) {
-    val choice = RuntimeEngineChoice.fromStored(id)
-    preferences.runtimeEngine = choice.id
-    RuntimeEngines.invalidate()
-    _state.update { it.copy(runtimeEngineChoice = choice.id) }
-    refreshRuntimeStatus()
-}
 
 fun MainViewModel.setLanguageCode(code: String) {
     val clean = code.trim().ifEmpty { "system" }

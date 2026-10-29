@@ -147,10 +147,6 @@ data class ForgeUiState(
     val totalRamLabel: String = "6 GB+",
     val androidVersionSupported: Boolean = true,
     val rootAvailable: Boolean = false,
-    /** No root, but the APK's PRoot engine can run the runtime (slower; ADR-007). */
-    val prootAvailable: Boolean = false,
-    /** Stored engine choice id (auto / chroot / proot). */
-    val runtimeEngineChoice: String = "auto",
     val runtimeInstalled: Boolean = false,
     /** False until the first root/rootfs probe finishes, so the setup screen is not shown on stale defaults. */
     val runtimeStatusLoaded: Boolean = false,

@@ -110,7 +110,6 @@ object AndroidAppInstaller {
      * No `-d`: an agent-built APK must not downgrade an installed app.
      */
     internal fun installSilentlyViaRoot(apk: File): Boolean = runCatching {
-        if (!RuntimeEngines.isRootEngine()) return@runCatching false
         val sizeBytes = apk.length()
         if (sizeBytes <= 0L) return@runCatching false
         val proc = ProcessBuilder("su", "-c", "pm install -r -S $sizeBytes")

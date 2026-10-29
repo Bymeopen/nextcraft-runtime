@@ -67,11 +67,12 @@ enum class AgentKind(
     val stableId: String,
     val title: String,
     val subtitle: String,
+    /** Download size in MiB, matching the "x / y MB" progress panel; verify against the pinned bundle or vendor manifest on release. */
     val downloadNote: String,
 ) {
-    CLAUDE_CODE("claude-code", "Claude Code", "Anthropic's coding agent · broad provider support", "71.9 MB"),
-    DEEPSEEK_HARNESS("deepseek-harness", "DeepSeek", "Official DeepSeek coding agent · API-key providers", "26.8 MB"),
-    ANTIGRAVITY("antigravity", "Antigravity CLI", "Google's official coding agent · Google account", "40.1 MB"),
+    CLAUDE_CODE("claude-code", "Claude Code", "Anthropic's coding agent · broad provider support", "279.9 MB"),
+    DEEPSEEK_HARNESS("deepseek-harness", "DeepSeek", "Official DeepSeek coding agent · API-key providers", "86.3 MB"),
+    ANTIGRAVITY("antigravity", "Antigravity CLI", "Google's official coding agent · Google account", "58.4 MB"),
     ;
 
     companion object {

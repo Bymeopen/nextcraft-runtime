@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fails when scripts/runtime-bundles/{chroot-exec,unmount-chroot,proot-exec}.sh differ from the copies embedded in RuntimeSupervisorScripts.kt.
+"""Fails when scripts/runtime-bundles/{chroot-exec,unmount-chroot}.sh differ from the copies embedded in RuntimeSupervisorScripts.kt.
 
 The app installs the embedded strings, so those are the source of truth; regenerate the files with
 `python3 scripts/check-embedded-scripts.py --write` after changing them.
@@ -14,7 +14,6 @@ RUNTIME_DIR = ROOT / "app/src/main/java/com/nextcraft/forge/runtime"
 PAIRS = {
     "CHROOT_EXEC_SCRIPT": "chroot-exec.sh",
     "UNMOUNT_CHROOT_SCRIPT": "unmount-chroot.sh",
-    "PROOT_EXEC_SCRIPT": "proot-exec.sh",
 }
 
 

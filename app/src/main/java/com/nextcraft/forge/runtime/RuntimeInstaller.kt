@@ -17,7 +17,6 @@ class RuntimeInstaller(internal val context: Context) {
     internal val runtimeDir = File(context.filesDir, "runtime")
     internal val runtimeBinDir = File(runtimeDir, "bin")
     internal val chrootExecFile = File(runtimeBinDir, "chroot-exec.sh")
-    internal val prootExecFile = File(runtimeBinDir, "proot-exec.sh")
     internal val unmountChrootFile = File(runtimeBinDir, "unmount-chroot.sh")
     internal val rootfs = File(runtimeDir, "ubuntu")
     internal val downloads = File(context.cacheDir, "runtime-downloads")
@@ -88,24 +87,19 @@ class RuntimeInstaller(internal val context: Context) {
             writeScriptAtomically(unmountChrootFile, UNMOUNT_CHROOT_SCRIPT)
         }
         Os.chmod(unmountChrootFile.absolutePath, 0b111101101)
-        if (!prootExecFile.isFile || prootExecFile.readTextOrNull() != PROOT_EXEC_SCRIPT.trim()) {
-            writeScriptAtomically(prootExecFile, PROOT_EXEC_SCRIPT)
-        }
-        // Never executed directly (app data is noexec for the app UID): it is always run as `/system/bin/sh script`.
-        Os.chmod(prootExecFile.absolutePath, 0b110100100)
+        // The non-root supervisor an older build installed is gone with the PRoot engine.
+        File(runtimeBinDir, "proot-exec.sh").delete()
         return chrootExecFile
     }
 
-    /** Active engine for this process; see [RuntimeEngines]. */
+    /** Root engine for this process, or `null` when root was not granted; see [RuntimeEngines]. */
     fun runtimeEngine(): RuntimeEngine? = RuntimeEngines.detect(context)
 
-    /** True when commands can run at all: root chroot, or the PRoot fallback. */
+    /** True when commands can run at all, i.e. root was granted. */
     fun isRuntimeAccessAvailable(): Boolean = runtimeEngine() != null
 
-    /** Arguments that launch a command line produced by [prepareChrootShellCommand] under the active engine. */
-    /** chroot: `su -mm -c` where the su supports it (see [SuCompat]); PRoot: the app's own shell. */
-    fun launchArgv(shellCommand: String): List<String> =
-        if (RuntimeEngines.current() == RuntimeEngine.CHROOT) SuCompat.argv(shellCommand) else RuntimeEngines.launchArgv(shellCommand)
+    /** Arguments that launch a command line produced by [prepareChrootShellCommand]: `su -mm -c` where the su supports it (see [SuCompat]). */
+    fun launchArgv(shellCommand: String): List<String> = SuCompat.argv(shellCommand)
 
     /** Replaces the script via rename so a concurrent launch never executes a half-written file. */
     internal fun writeScriptAtomically(target: File, content: String) {
@@ -168,9 +162,8 @@ class RuntimeInstaller(internal val context: Context) {
             "NextCraft Forge requires at least 6 GB of RAM (detected ${hwProfile.ramTier.label})."
         }
         // The first su call shows the Magisk/KernelSU/APatch grant dialog; the 8 s default kills su before the user can tap Allow.
-        // Without root the bundled PRoot engine (ADR-007) takes over; without either there is nothing to run on.
         requireNotNull(RuntimeEngines.detect(context, ROOT_GRANT_TIMEOUT_SECONDS, refresh = true)) {
-            "Root access (su -mm) is required by NextCraft Forge's Ubuntu 24.04 LTS Chroot engine, and this build has no PRoot fallback. Grant root permission in Magisk, KernelSU, or APatch and try again."
+            "Root access (su -mm) is required by NextCraft Forge's Ubuntu 24.04 LTS Chroot engine. Grant root permission in Magisk, KernelSU, or APatch and try again."
         }
         val chrootExec = ensureChrootScripts()
         require(chrootExec.canExecute()) { "The Root Chroot supervisor script is unavailable" }
@@ -316,7 +309,6 @@ class RuntimeInstaller(internal val context: Context) {
 
     /**
      * Spawns a command inside the Ubuntu 24.04 Root Chroot via `su -mm` and `chroot-exec.sh`.
-     * No PRoot binary or ptrace translation is used.
      */
     @Suppress("UNUSED_PARAMETER")
     fun process(
@@ -410,10 +402,7 @@ class RuntimeInstaller(internal val context: Context) {
         val appUid = AndroidProcess.myUid().toString()
 
         val hwProfile = DeviceHardwareOptimizer.inspect(context)
-        val prootConfig = ProotAndChrootOptimizer.buildConfig(
-            hwProfile = hwProfile,
-            emulateHardLinks = true,
-        )
+        val chrootConfig = ChrootOptimizer.buildConfig(hwProfile = hwProfile)
         val guestEnv = buildMap {
             put("HOME", "/root")
             put("USER", "root")
@@ -433,9 +422,7 @@ class RuntimeInstaller(internal val context: Context) {
             put("LANG", "C.UTF-8")
             put("TERM", "xterm-256color")
             put("GLIBC_TUNABLES", "glibc.pthread.rseq=0")
-            // PROOT_TMP_DIR/PROOT_L2S_DIR here are bare "/tmp/..." -- real top-level host paths the app has no
-            // permission to write to. chroot-exec.sh/proot-exec.sh compute their own rootfs versions of both.
-            putAll(prootConfig.environmentVars.filterKeys { it != "PROOT_TMP_DIR" && it != "PROOT_L2S_DIR" })
+            putAll(chrootConfig.environmentVars)
             putAll(environment)
         }
 
@@ -485,20 +472,9 @@ class RuntimeInstaller(internal val context: Context) {
             bridge.absolutePath,
             appUid,
         ) + guestCommand
-        val launch = when (RuntimeEngines.current()) {
-            RuntimeEngine.CHROOT -> listOf(chrootExec.absolutePath) + supervisorArgs
-            // Same supervisor contract, but driven by proot from the APK; the app UID cannot exec the script itself.
-            RuntimeEngine.PROOT -> listOf("/system/bin/sh", prootExecFile.absolutePath) + supervisorArgs
-        }
-        val engineExports = if (RuntimeEngines.current() == RuntimeEngine.PROOT) {
-            "export NEXTCRAFT_PROOT=${shellSingleQuote(RuntimeEngines.prootBinary(context).absolutePath)}; " +
-                "export NEXTCRAFT_PROOT_LOADER=${shellSingleQuote(RuntimeEngines.prootLoader(context).absolutePath)}; " +
-                "export NEXTCRAFT_PROOT_TMP=${shellSingleQuote(File(runtimeDir, "proot-tmp").apply { mkdirs() }.absolutePath)}; "
-        } else {
-            ""
-        }
+        val launch = listOf(chrootExec.absolutePath) + supervisorArgs
         val pidFile = GuestProcess.pidFileFor(envFile).also { it.parentFile?.mkdirs() }
-        val suCommand = ". $quotedEnvFile; rm -f $quotedEnvFile; $engineExports" + GuestProcess.recordPidCommand(pidFile) +
+        val suCommand = ". $quotedEnvFile; rm -f $quotedEnvFile; " + GuestProcess.recordPidCommand(pidFile) +
             "exec " + launch.joinToString(" ") { shellSingleQuote(it) }
         return envFile to suCommand
     }
@@ -798,10 +774,6 @@ class RuntimeInstaller(internal val context: Context) {
         /** Last Claude Code release this build was tested with; used only when npm cannot be reached. Downloaded from the vendor, never bundled. */
         internal const val CLAUDE_FALLBACK_VERSION = "2.1.308"
         internal const val CLAUDE_GUEST_PATH = "/usr/local/bin/claude"
-        /** Where the npm package lands under PRoot; CLAUDE_GUEST_PATH becomes a symlink into it. */
-        internal const val CLAUDE_NPM_GUEST_DIR = "/usr/local/lib/claude-code"
-        /** Last @anthropic-ai/claude-code release shipping cli.js (2.1.113+ only download the Bun binary). */
-        internal const val CLAUDE_NPM_VERSION = "2.1.112"
         internal val PYTHON_BUNDLE = RuntimeBundle(
             label = "Python",
             fileName = "nextcraft-python-arm64-2026.10.2.tar.zst",

@@ -119,7 +119,6 @@ import com.nextcraft.forge.runtime.findDebugApk
 import com.nextcraft.forge.runtime.hasAndroidLogcatAccess
 import com.nextcraft.forge.runtime.inferAndroidBuildStage
 import com.nextcraft.forge.runtime.RuntimeEngine
-import com.nextcraft.forge.runtime.RuntimeEngineChoice
 import com.nextcraft.forge.runtime.RuntimeEngines
 import com.nextcraft.forge.runtime.parseAndroidBuildIssues
 import com.nextcraft.forge.runtime.readBoundedText
@@ -585,10 +584,6 @@ fun MainViewModel.syncProjectWithGitHub(
                     append("if ! git push -u origin \"HEAD:${'$'}branch\"; then ")
                     append("git push -f origin \"HEAD:ccr-auto-sync-${'$'}branch\" >/dev/null 2>&1 || true; ")
                     append("fi && ")
-                    append("if git remote get-url proot >/dev/null 2>&1; then ")
-                    append("git branch -f proot-main HEAD >/dev/null 2>&1 || true; ")
-                    append("git push -f proot HEAD:main >/dev/null 2>&1 || true; ")
-                    append("fi; ")
                     append("else echo 'No origin remote configured in workspace' >&2; false; fi")
                 }
                 withGitHubCredentials(token, login) {

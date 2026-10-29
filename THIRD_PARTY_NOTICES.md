@@ -11,8 +11,6 @@ NextCraft Forge began as a derivative of **Mobile Harness** (`techjarves/Mobile-
 | **Termux `terminal-emulator` & `terminal-view` (`v0.118.0`)** | `GPL-3.0-only` (Apache-2.0 portions by Jack Palevich) | Section 2 below |
 | **Mobile Harness (upstream of derived files + MIT Notice)** | `MIT` | Section 3 below |
 | **XERJ (`xerj-org/xerj` — Conceptual Inspiration for Reference Indexing)** | Conceptual Inspiration | Section 4 below |
-| **PRoot `v5.5.0` (bundled `libproot.so`, `libproot_loader.so`)** | `GPL-2.0-or-later` | Section 5 below |
-| **talloc `2.4.3` (statically linked into PRoot)** | `LGPL-3.0-or-later` | Section 5 below |
 | **Maven runtime dependencies** | `Apache-2.0`, `BSD-2-Clause` | Section 6 below |
 | **Runtime bundles downloaded on first run** | various (see table) | Section 7 below |
 
@@ -60,11 +58,8 @@ SOFTWARE.
 
 ---
 
-## 5. PRoot and talloc (bundled native binaries)
-- **Component:** `app/src/main/jniLibs/arm64-v8a/libproot.so` and `libproot_loader.so`, static ARM64 build of **PRoot v5.5.0** (https://github.com/proot-me/proot), statically linked with **talloc 2.4.3** (https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz). Built reproducibly by `scripts/runtime-bundles/build-proot-static.sh`, which pins the source versions and the talloc SHA-256.
-- **License:** PRoot is `GPL-2.0-or-later` (the binary reports "licensed under GPL v2 or later"); talloc is `LGPL-3.0-or-later`. Both are compatible with GPL-3.0-only distribution.
-- **Distribution Requirement:** Ship the corresponding source (or a written offer) for PRoot and talloc together with any binary distribution. The build script above plus the pinned upstream tag/tarball satisfy this for the unmodified sources.
-- **Copyright:** The PRoot Developers; the Samba Team (talloc).
+## 5. PRoot and talloc (no longer bundled)
+Earlier builds shipped **PRoot v5.5.0** (`GPL-2.0-or-later`) statically linked with **talloc 2.4.3** (`LGPL-3.0-or-later`) as `libproot.so` and `libproot_loader.so` for a non-root fallback engine. That engine, the binaries, and `scripts/runtime-bundles/build-proot-static.sh` were removed; NextCraft Forge is now root-only and does not distribute PRoot or talloc. Releases built before the removal keep the obligations of those licenses; their source is the upstream tag `v5.5.0` of `proot-me/proot` and `talloc-2.4.3.tar.gz` from samba.org.
 
 ---
 
@@ -85,7 +80,7 @@ The Gradle Wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar
 ---
 
 ## 7. Runtime Bundles (not inside the APK; downloaded on first run)
-The APK contains only the app, `libproot*.so`, and scripts. The first-run installer downloads the `.tar.zst` bundles below (Core, Android, Python, DeepSeek) from the project release `https://github.com/bymeopen/nextcraft-forge/releases/download/runtime-2026.10.2` (`RuntimeInstaller.kt`, `RuntimeBundle`), verified by pinned SHA-256. Hosting them there is **redistribution** by this project. Builders live in `scripts/runtime-bundles/`.
+The APK contains only the app, `libforgespawn.so`, and scripts. The first-run installer downloads the `.tar.zst` bundles below (Core, Android, Python, DeepSeek) from the project release `https://github.com/bymeopen/nextcraft-forge/releases/download/runtime-2026.10.2` (`RuntimeInstaller.kt`, `RuntimeBundle`), verified by pinned SHA-256. Hosting them there is **redistribution** by this project. Builders live in `scripts/runtime-bundles/`.
 
 | Bundle | Contents (per build script) | License / status |
 | :--- | :--- | :--- |
@@ -94,7 +89,7 @@ The APK contains only the app, `libproot*.so`, and scripts. The first-run instal
 | `nextcraft-python-arm64` | Python runtime (`build-python-bundle.sh`) | Overlay of the files `apt-get install python3 python3-pip python3-venv` adds to the Core rootfs (Ubuntu noble, Python 3.12): PSF License for CPython, plus the licenses of the other Ubuntu packages (see Core row). Not itemised per package. |
 | `nextcraft-dsh-arm64` | DeepSeek harness `dsh` `0.2.1-rc.2` | npm package `@deepseek-ai/dsh` (repo `deepseek-ai/deepseek-harness`) declares `MIT` for the top-level package; its npm dependencies are resolved at build time and their licenses are **not itemised**. |
 
-**Not bundled (downloaded from the vendor):** Claude Code (`downloads.claude.ai`, SHA-256 from the vendor manifest; on the PRoot engine `@anthropic-ai/claude-code@2.1.112` from npm) and Antigravity CLI (`storage.googleapis.com/antigravity-public`, SHA-512 from the vendor manifest). Both are proprietary (Claude Code: `© Anthropic PBC. All rights reserved`, use subject to Anthropic's legal agreements); this project neither builds nor hosts their binaries, and users accept the vendors' terms when they sign in and use them.
+**Not bundled (downloaded from the vendor):** Claude Code (`downloads.claude.ai`, SHA-256 from the vendor manifest) and Antigravity CLI (`storage.googleapis.com/antigravity-public`, SHA-512 from the vendor manifest). Both are proprietary (Claude Code: `© Anthropic PBC. All rights reserved`, use subject to Anthropic's legal agreements); this project neither builds nor hosts their binaries, and users accept the vendors' terms when they sign in and use them.
 
 Additional tools installed by the user inside the guest through `apt`/`pip`/`npm` (for example `qemu-user`, `frida`, `unicorn`, `openssh-client`, `gh` v2.100.0) are fetched from their official sources and are not redistributed by this project.
 
@@ -102,8 +97,10 @@ Additional tools installed by the user inside the guest through `apt`/`pip`/`npm
 
 ## 8. Distribution Compliance (GitHub Releases only)
 - **Channel:** APK and runtime bundles are distributed only through GitHub Releases of `bymeopen/nextcraft-forge`; the app is not published on Google Play. GPL obligations apply to GitHub distribution just as to any other channel.
-- **Source offer (GPL-3.0 / GPL-2.0+ / LGPL-3.0+):** The complete corresponding source of NextCraft Forge is the repository at the release tag. Source for PRoot v5.5.0 and talloc 2.4.3 is the pinned upstream tag/tarball in `scripts/runtime-bundles/build-proot-static.sh`. Source for the Ubuntu packages inside the Core/Python bundles is available from `archive.ubuntu.com` (Ubuntu 24.04 `noble`). Each release must attach or link `LICENSE` and this file.
+- **Source offer (GPL-3.0):** The complete corresponding source of NextCraft Forge is the repository at the release tag. Source for the Ubuntu packages inside the Core/Python bundles is available from `archive.ubuntu.com` (Ubuntu 24.04 `noble`). Each release must attach or link `LICENSE` and this file.
 - **Termux terminal libraries (GPL-3.0):** linked into the APK; the APK is therefore GPL-3.0-only and must be accompanied by this notice and the source (see Section 2).
 - **Trademarks:** Claude, Claude Code, Anthropic, Antigravity, Google, DeepSeek, Ubuntu, Canonical, Termux, and Android are trademarks of their respective owners. This project is independent and unaffiliated; names are used only to identify compatibility.
-- **Proprietary third-party agents (resolved by design):** Claude Code and Antigravity CLI are not re-hosted. The installer downloads them directly from the vendors' official URLs and verifies checksums (`installClaudeRelease`, `installAgyRelease`), so no redistribution permission is needed. Do not re-introduce project-hosted bundles of these binaries; `OfficialAgentSourcesTest` guards against it.
+- **Proprietary third-party agents (resolved):** Claude Code and Antigravity CLI are not re-hosted. The installer downloads them directly from the vendors' official URLs and verifies checksums (`installClaudeRelease`, `installAgyRelease`), so no redistribution permission is needed. The earlier project-hosted bundles `nextcraft-claude-arm64-2026.10.2.tar.zst` and `nextcraft-agy-arm64-2026.10.2.tar.zst` were removed from the `runtime-2026.10.2` GitHub release; both URLs returned HTTP 404 on 2026-10-29. Do not re-introduce project-hosted bundles of these binaries; `OfficialAgentSourcesTest` guards the source tree.
+- **REUSE compliance:** `reuse lint` (REUSE Specification 3.3, tool v6.2.0) reports the project compliant: every tracked file has copyright and license information via `REUSE.toml` (524 of 524 when checked), and the texts of `Apache-2.0`, `GPL-2.0-or-later`, `GPL-3.0-only`, `LGPL-3.0-or-later` and `MIT` are in `LICENSES/`. Re-run it when files or dependencies change.
+- **Still open (not blocking a beta):** licenses of the transitive npm dependencies of `@deepseek-ai/dsh` and of each Ubuntu package inside the Core/Python bundles are not itemised here.
 - **User-supplied credentials:** The app stores and uses API keys and accounts supplied by the user; users must comply with each provider's terms of service.

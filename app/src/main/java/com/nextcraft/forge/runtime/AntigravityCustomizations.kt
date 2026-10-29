@@ -164,7 +164,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
 ## 1. System & Toolchain Snapshot
 - **Target Platform**: Android (`arm64-v8a`, `minSdk 31`, `compileSdk ${AndroidToolchain.COMPILE_SDK}`).
 - **Build System**: AGP `${AndroidToolchain.AGP_VERSION}`, Kotlin `${AndroidToolchain.KOTLIN_VERSION}` (built-in via AGP 9 DSL), JDK `${AndroidToolchain.JDK_MAJOR}`.
-- **Guest Runtime**: Ubuntu 24.04.5 LTS ARM64 Root Chroot & Non-Root PRoot fallback in NextCraft Forge.
+- **Guest Runtime**: Ubuntu 24.04.5 LTS ARM64 Root Chroot in NextCraft Forge.
 
 ## 2. Key Architectural Decisions
 - Initialized Hermes-Lite v2 zero-overhead cognitive architecture (`AGENTS.md`, `.agents/hooks.json`, `.agents/scripts/{security_gate,session_search,context_compressor,skill_hub,hermes_init,web_and_ui_tool}.py`, `.agents/memory/{USER,MEMORY}.md`, and `skill-creator`).
@@ -196,7 +196,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
   - Digest sebelum `/compact`: `python3 .agents/scripts/context_compressor.py`
 
 ### B. Snapshot Sistem & Target Platform Universal
-- **Lingkungan Runtime**: Ubuntu 24.04.5 LTS ARM64 (Root Chroot / Non-Root PRoot fallback) di NextCraft Forge, dilengkapi emulasi `run-x86` (Box64) dan *Host Android Bridge* (`android-shell`, `android-dumpsys`, `android-screencap`, `keep-running`).
+- **Lingkungan Runtime**: Ubuntu 24.04.5 LTS ARM64 (Root Chroot) di NextCraft Forge, dilengkapi emulasi `run-x86` (Box64) dan *Host Android Bridge* (`android-shell`, `android-dumpsys`, `android-screencap`, `keep-running`).
 - **Dukungan Platform (Universal / Sesuai Permintaan User)**:
   1. **Web & Cloud Frontend**: HTML5/CSS3/TS, React, Next.js, Vue, Nuxt, Svelte, Astro, Tailwind CSS, WebGL/Canvas.
   2. **Backend, Server & Database**: Node.js/Bun, Python (FastAPI/Django/Flask), Go, Rust, PHP/Laravel, Java/Spring, C#/.NET, GraphQL, gRPC, SQL/NoSQL (PostgreSQL, MySQL, SQLite/Room, MongoDB, Redis).

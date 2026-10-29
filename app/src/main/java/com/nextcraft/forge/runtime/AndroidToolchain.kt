@@ -18,7 +18,8 @@ internal object AndroidToolchain {
     const val NDK_VERSION = "29.0.14206865"
     const val NDK_RELEASE_URL = "https://github.com/lzhiyong/termux-ndk/releases/download/android-ndk/android-ndk-r29-aarch64.tar.xz"
     const val NDK_RELEASE_SHA256 = "02e10e4ddfe8deaeb0bd0cf29d04c981ed5bc8a5d6b560ebb9e7661f472d684b"
-    const val NDK_DOWNLOAD_NOTE = "~360 MB"
+    /** Exact size of [NDK_RELEASE_URL] (Content-Length), shown in the UI as a download size. */
+    const val NDK_DOWNLOAD_BYTES = 360_538_712L
     const val GRADLE_VERSION = "9.8.1"
     const val AGP_VERSION = "9.4.1"
     const val KOTLIN_VERSION = "2.4.21"

@@ -53,7 +53,6 @@ import org.json.JSONObject
 import com.nextcraft.forge.runtime.findAndroidProjectRoot
 import com.nextcraft.forge.runtime.findDebugApk
 import com.nextcraft.forge.runtime.RuntimeEngine
-import com.nextcraft.forge.runtime.RuntimeEngineChoice
 import com.nextcraft.forge.runtime.supportsArm64Runtime
 import com.nextcraft.forge.update.AppUpdateInfo
 import com.nextcraft.forge.update.AppUpdater
@@ -302,7 +301,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             themeMode = ForgeThemeMode.fromStored(preferences.themeMode).id,
             glassSolid = preferences.glassSolid,
             languageCode = AppStrings.languageCode(application),
-            runtimeEngineChoice = RuntimeEngineChoice.fromStored(preferences.runtimeEngine).id,
         ),
     )
     val state: StateFlow<ForgeUiState> = _state.asStateFlow()
@@ -459,7 +457,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     totalRamLabel = hwProfile.ramTier.label,
                     androidVersionSupported = androidOk,
                     rootAvailable = rootOk,
-                    prootAvailable = engine == RuntimeEngine.PROOT,
                     runtimeInstalled = installed,
                     runtimeStatusLoaded = true,
                     selectedDevStacks = savedStacks,
@@ -574,7 +571,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     totalRamLabel = hwProfile.ramTier.label,
                     androidVersionSupported = androidOk,
                     rootAvailable = rootOk,
-                    prootAvailable = engine == RuntimeEngine.PROOT,
                     runtimeInstalled = installed,
                     runtimeStatusLoaded = true,
                     installedDevStacks = installedStacks,
@@ -623,12 +619,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** True when a manual runtime operation may start; otherwise posts the reason as a banner. */
-    internal fun canRunRuntimeOperation(): Boolean {
+    internal fun canRunRuntimeOperation(targetAgent: AgentKind? = null): Boolean {
         val current = _state.value
+        val agentInUse = if (targetAgent != null) {
+            runs.values.any { it.agent == targetAgent }
+        } else {
+            current.sessionRunning || current.terminalRunning || current.androidBuild.phase == AndroidBuildPhase.BUILDING
+        }
         val reason = when {
             !current.runtimeInstalled -> UiText.res(R.string.msg_core_not_installed)
-            current.sessionRunning || current.terminalRunning || current.androidBuild.phase == AndroidBuildPhase.BUILDING ->
-                UiText.res(R.string.msg_wait_for_running_task)
+            agentInUse -> UiText.res(R.string.msg_wait_for_running_task)
             current.setupSnapshot.status == RuntimeSetupStatus.RUNNING -> UiText.res(R.string.msg_runtime_op_running)
             else -> return true
         }
@@ -658,7 +658,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Manually installs one agent bundle (Claude Code, DeepSeek or Antigravity) on top of the Core runtime. */
     fun installAgent(agent: AgentKind) {
         if (!_state.value.runtimeInstalled) return installCoreWith(emptySet(), agent)
-        if (!canRunRuntimeOperation()) return
+        if (!canRunRuntimeOperation(targetAgent = agent)) return
         startRuntimeOperation(SetupScope.AGENT) {
             action = RuntimeSetupService.ACTION_INSTALL_AGENT
             putExtra(RuntimeSetupService.EXTRA_AGENT, agent.name)
@@ -666,7 +666,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeAgent(agent: AgentKind) {
-        if (!canRunRuntimeOperation()) return
+        if (!canRunRuntimeOperation(targetAgent = agent)) return
         startRuntimeOperation(SetupScope.AGENT) {
             action = RuntimeSetupService.ACTION_REMOVE_AGENT
             putExtra(RuntimeSetupService.EXTRA_AGENT, agent.name)
@@ -675,7 +675,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateAgent(agent: AgentKind) {
         val info = _state.value.agentUpdates[agent] ?: return
-        if (!canRunRuntimeOperation()) return
+        if (!canRunRuntimeOperation(targetAgent = agent)) return
         startRuntimeOperation(SetupScope.AGENT) {
             action = RuntimeSetupService.ACTION_UPDATE_AGENT
             putExtra(RuntimeSetupService.EXTRA_AGENT, agent.name)

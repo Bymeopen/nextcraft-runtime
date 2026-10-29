@@ -1,6 +1,7 @@
 # Runtime 24.04 — Masalah yang Diketahui dan Rencana Perbaikan
 
-Status per 2026-10-18, dari uji di perangkat root (kernel 5.10 GKI, Ubuntu 24.04.5 arm64, glibc 2.39) memakai
+Bagian "Terverifikasi di perangkat (2026-10-29)", "Masalah yang diketahui (agen dan login)", dan "Belum terverifikasi" diperbarui 2026-10-29.
+Tabel dan catatan runtime di bawahnya: status per 2026-10-18, dari uji di perangkat root (kernel 5.10 GKI, Ubuntu 24.04.5 arm64, glibc 2.39) memakai
 `scripts/runtime-bundles/chroot-health.sh` dan diagnosa manual di terminal chroot.
 
 ## Status
@@ -94,21 +95,33 @@ tanpa bind `/system`/`/apex`. Mount Bionic di `chroot-exec.sh` tetap dipertahank
 alat lain. Kompatibilitas dengan AGP 9.4.1 diverifikasi di x86_64 memakai `aapt2` resmi Build-Tools 35.0.1 (generasi
 sumber yang sama) lewat `android.aapt2FromMavenOverride`; `aapt2` ARM64 itu sendiri diuji dengan `qemu-user-static`.
 
-### Mesin PRoot (tanpa root, ADR-007)
+> **Edisi aplikasi:** aplikasi ini hanya untuk perangkat root. Jalur cadangan PRoot sudah dibuang (lihat `docs/NON_ROOT.md`).
 
-Bila `su` tidak tersedia, aplikasi memakai `libproot.so` dari APK (`proot` 5.5.0 + `talloc` 2.4.3 statis, dibangun oleh
-`scripts/runtime-bundles/build-proot-static.sh` dari `proot-me/proot` commit `25dc6a31…` dan `talloc-2.4.3.tar.gz`
-SHA-256 `dc46c40b…`; `libproot.so` 938.648 byte, SHA-256 `de90c7a62c5a27e23383625ade5995b99f761e35cf49665555af5b394299361f`; `libproot_loader.so` 73.552 byte, SHA-256 `350434c827459c6cd87827f728e9c933ee905baa4e597c430f44b013517f7677`; dua build berturut-turut identik). Bundle Core/Python/Claude/DSH/Agy/Android
-tidak berubah; `aapt2` statis membuat build Android tidak lagi bergantung pada `/apex`. Yang tidak tersedia di mode ini:
-`pm install` senyap (jatuh ke `PackageInstaller`), penonaktifan phantom-process killer (`adb shell device_config put
-activity_manager max_phantom_processes 2147483647` bisa dilakukan manual), `chroot-health.sh` bagian *Mount* (ERR wajar).
-Bila `proot` gagal dengan `seccomp`/`ptrace` di kernel tertentu, coba `PROOT_NO_SECCOMP=1` lewat environment agen.
+## Terverifikasi di perangkat (2026-10-29)
 
-**Belum diuji di perangkat.** Sandbox hanya bisa membangun binernya; `ptrace` tidak tersedia di bawah `qemu-user`.
+Satu perangkat root, mode chroot, build debug samping (`com.nextcraft.forge.x`), runtime dipasang dari nol:
+
+- Claude Code `2.1.312` diunduh langsung dari `downloads.claude.ai`. Login claude.ai berhasil, `claude auth status`
+  menunjukkan `loggedIn: true`, dan `claude -p` membalas.
+- Antigravity CLI `1.4.10` diunduh langsung dari manifes vendor. Login Google berhasil dan `agy models` menampilkan daftar model.
+- Bundle `nextcraft-claude-arm64-*` dan `nextcraft-agy-arm64-*` tidak lagi dipakai maupun di-host (lihat
+  `THIRD_PARTY_NOTICES.md` bagian 8).
+
+## Masalah yang diketahui (agen dan login)
+
+| # | Masalah | Status |
+| :--- | :--- | :--- |
+| 4 | Build tanpa NDK tidak memuat `libforgespawn.so`, sehingga `NativeSpawnProcess` jatuh ke `ProcessBuilder` tanpa pty dan login Antigravity tidak bisa dimulai | Build rilis (CI) punya NDK. Build lokal tanpa NDK sekarang gagal dengan pesan jelas. Opsi `-Pnextcraft.prebuiltJniDir=<dir>` memasukkan pustaka yang sudah jadi |
+| 5 | `agy` 1.4.x membuka `/dev/tty`, sedangkan `su -c` dari aplikasi tidak memberi terminal pengendali | Diperbaiki di `chroot-exec.sh` (`setsid -c`) |
+| 6 | Antigravity mengarahkan login ke `antigravity.google/oauth-callback`, yang menampilkan kode dan tidak bisa kembali ke aplikasi otomatis | Aplikasi membuka browser sendiri dan mengisi kode dari clipboard bila berbentuk `4/...`. Pengguna tetap menyalin kode di halaman callback |
+| 7 | Pengunduhan agen besar: Claude Code sekitar 292 MB dan Antigravity CLI sekitar 61 MB, dan bergantung pada URL vendor | Versi cadangan dipin (Claude `2.1.308`, Antigravity `1.4.5`). Bila vendor menghapus versi itu, perlu diperbarui |
+| 8 | `gradle assembleRelease` offline gagal karena artefak `org.jetbrains.kotlin:compose-group-mapping:2.4.21` tidak ada di cache Maven lokal | Build online berhasil (±14 menit). CI memakai jaringan |
 
 ## Belum terverifikasi
 
-- Fungsi nyata agen (Claude Code, DSH, Antigravity) di perangkat. Di uji ini belum dipasang karena belum dipilih.
+- Instalasi bersih dari APK rilis hasil CI (bertanda tangan kunci rilis), termasuk perilaku R8 saat runtime.
+- Percakapan nyata dengan Antigravity CLI dari UI aplikasi. Yang diuji hanya login dan `agy models`.
+- Perangkat selain satu perangkat uji di atas.
 - `gh` (dipasang lewat tombol **Hubungkan** GitHub).
 - Build APK end-to-end di perangkat. Dengan bundle 2026.10.1, `gradle assembleDebug --offline` kedua template
   (Compose dan Views) sudah lulus di chroot Core 24.04 ARM64 lewat `qemu-user-static` di x86_64 (biner `aapt2`

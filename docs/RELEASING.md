@@ -9,6 +9,11 @@ Cek update di Settings membaca `https://github.com/bymeopen/nextcraft-forge/rele
 2. Actions → **Release app** → Run workflow, isi tag (mis. `v1.0.1`), `version_code` (harus lebih besar dari build terpasang; saat ini 100), `version_name`.
 3. Workflow membangun APK release bertanda tangan, membuat `update-manifest.json` (`scripts/make-update-manifest.sh`) dan menerbitkan keduanya sebagai rilis **latest**.
 
+   **Pre-release (beta):** isi `prerelease` dengan `true` dan pakai tag bersufiks, misalnya `v1.0.126-beta.1`. Rilis itu diterbitkan sebagai
+   pre-release dan **tidak** menjadi "latest", jadi pembaruan dalam aplikasi (`releases/latest/download/update-manifest.json`)
+   mengabaikannya. Tag bersufiks dengan `prerelease=false` ditolak workflow. Uji pre-release dengan
+   [RELEASE_TEST_CHECKLIST.md](RELEASE_TEST_CHECKLIST.md) sebelum menerbitkan rilis stabil.
+
 Rilis runtime (`runtime-*`) tidak boleh menjadi rilis "latest": tandai sebagai pre-release atau terbitkan lebih dulu, supaya cek update tidak membaca release yang salah.
 
 ## Manual
@@ -44,5 +49,8 @@ secara manual.
 ## Checklist lisensi sebelum publikasi
 
 1. Lampirkan `LICENSE` dan `THIRD_PARTY_NOTICES.md` pada rilis, dan pastikan tag rilis memuat kode sumber yang sama dengan APK.
-2. Jika versi dependensi, PRoot/talloc, atau isi bundle runtime berubah, perbarui bagian 5 sampai 7 di `THIRD_PARTY_NOTICES.md` dan `REUSE.toml`.
-3. Jangan mengunggah biner Claude Code atau Antigravity CLI ke rilis publik. Installer mengunduhnya langsung dari vendor (lihat `THIRD_PARTY_NOTICES.md` bagian 8).
+2. Jika versi dependensi atau isi bundle runtime berubah, perbarui bagian 5 sampai 7 di `THIRD_PARTY_NOTICES.md` dan `REUSE.toml`.
+3. Jangan mengunggah biner Claude Code atau Antigravity CLI ke rilis publik. Installer mengunduhnya langsung dari vendor (lihat `THIRD_PARTY_NOTICES.md` bagian 8). Bundle lama `nextcraft-claude-arm64-2026.10.2` dan `nextcraft-agy-arm64-2026.10.2` sudah dihapus dari release `runtime-2026.10.2` (HTTP 404, diperiksa 2026-10-29).
+4. Jalankan `reuse lint` (pasang lewat `pip install reuse`; teks lisensi ada di `LICENSES/`, tambah lewat `reuse download --all`) dan pastikan lulus.
+5. Pastikan `PRIVACY.md` dan `SECURITY.md` masih sesuai dengan perilaku aplikasi, dan private vulnerability reporting aktif di repositori.
+6. Build rilis butuh NDK (CI sudah punya). Build lokal tanpa NDK tidak memuat `libforgespawn.so`, sehingga login agen berbasis terminal tidak berjalan.

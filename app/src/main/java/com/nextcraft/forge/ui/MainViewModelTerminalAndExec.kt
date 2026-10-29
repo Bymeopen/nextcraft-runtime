@@ -118,7 +118,6 @@ import com.nextcraft.forge.runtime.findDebugApk
 import com.nextcraft.forge.runtime.hasAndroidLogcatAccess
 import com.nextcraft.forge.runtime.inferAndroidBuildStage
 import com.nextcraft.forge.runtime.RuntimeEngine
-import com.nextcraft.forge.runtime.RuntimeEngineChoice
 import com.nextcraft.forge.runtime.RuntimeEngines
 import com.nextcraft.forge.runtime.parseAndroidBuildIssues
 import com.nextcraft.forge.runtime.readBoundedText
@@ -448,7 +447,7 @@ internal fun MainViewModel.cleanupChrootProcess(process: Process?) {
 /** Starts [command] inside the Root Chroot (Gradle, git and the SDK only exist there). */
 internal fun MainViewModel.startChrootProcess(projectSlug: String, workspaceDir: File, command: String): Process {
     check(installer.isInstalled() && installer.isRuntimeAccessAvailable()) {
-        "Root access (or the PRoot engine) and the installed Linux runtime are required to run this."
+        "Root access and the installed Linux runtime are required to run this."
     }
     val (envFile, suCommand) = installer.prepareChrootShellCommand(
         workspace = workspaceDir,

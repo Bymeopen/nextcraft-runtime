@@ -294,13 +294,13 @@ fun NextCraftForgeApp(viewModel: MainViewModel) {
                 // statusBarsPadding() here doubled the top gap.
                 .padding(innerPadding),
         ) {
-            // Plain confirmations ("all agents are up to date") clear themselves so they do not follow people from
-            // screen to screen. Errors and notices that offer an action stay until read, acted on or dismissed.
+            // Auto-dismiss all non-actionable banners in 3 s so they never stick around indefinitely.
+            // Only banners offering an explicit recovery action button stay until acted on or dismissed.
             val bannerKey = state.bannerMessage
-            val bannerClears = state.bannerAction == null && (bannerKey as? UiText.Res)?.id in transientBanners
+            val bannerClears = state.bannerAction?.takeIf { it.forMessage == bannerKey } == null
             LaunchedEffect(bannerKey, bannerClears) {
                 if (bannerKey != null && bannerClears) {
-                    kotlinx.coroutines.delay(3_000) // confirm banners disappear in 3 s
+                    kotlinx.coroutines.delay(3_000)
                     viewModel.dismissBanner()
                 }
             }
@@ -573,28 +573,3 @@ fun NextCraftForgeApp(viewModel: MainViewModel) {
         )
     }
 }
-
-/** Banners that only confirm something; everything else (errors, blocked actions, offers) stays on screen. */
-private val transientBanners = setOf(
-    R.string.msg_agents_up_to_date,
-    R.string.msg_imported,
-    R.string.msg_queue_discarded,
-    R.string.msg_caches_cleared,
-    R.string.msg_parallel_queued,
-    R.string.msg_git_waiting_queue,   // informational status, not an error — auto-dismiss in 3 s
-    R.string.branch_enabled,
-    R.string.branch_auto,
-    R.string.branch_merged,
-    R.string.branch_updated,
-    R.string.branch_committed,
-    R.string.repo_committed,
-    R.string.repo_branch_created,
-    R.string.repo_branch_switched,
-    R.string.repo_branch_deleted,
-    R.string.connector_saved,
-    R.string.skill_saved,
-    R.string.schedule_added,
-    R.string.schedule_cleared,
-    R.string.rt_snap_saved,
-    R.string.rt_snap_deleted,
-)

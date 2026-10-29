@@ -159,16 +159,16 @@ class DiagnosticsController(
                 ?.takeIf { it.isNotBlank() }?.let { add(row(R.string.diag_rootfs, UiText.Raw(it))) }
             runCatching {
                 val hw = DeviceHardwareOptimizer.inspect(appContext)
-                val prootCfg = ProotAndChrootOptimizer.buildConfig(hw, hasRootAccess = root)
-                val pageKb = prootCfg.kernelProfile.pageSizeBytes / 1024
+                val chrootCfg = ChrootOptimizer.buildConfig(hw)
+                val pageKb = chrootCfg.kernelProfile.pageSizeBytes / 1024
                 add(
                     UiText.Raw("Android Kernel profile") to UiText.Raw(
-                        "${prootCfg.kernelProfile.rawRelease} · ${prootCfg.kernelProfile.family.shortBadge} · ${pageKb}KB pages",
+                        "${chrootCfg.kernelProfile.rawRelease} · ${chrootCfg.kernelProfile.family.shortBadge} · ${pageKb}KB pages",
                     ),
                 )
                 add(
-                    UiText.Raw("Container / PRoot optimization") to UiText.Raw(
-                        "${prootCfg.backend.displayName} · /dev/shm ${prootCfg.shmSizeMb}MB · /tmp ${prootCfg.tmpSizeMb}MB · UV threads ${prootCfg.uvThreadpoolSize}",
+                    UiText.Raw("Chroot optimization") to UiText.Raw(
+                        "/dev/shm ${chrootCfg.shmSizeMb}MB · /tmp ${chrootCfg.tmpSizeMb}MB · UV threads ${chrootCfg.uvThreadpoolSize}",
                     ),
                 )
             }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("DiagnosticsController", it) }

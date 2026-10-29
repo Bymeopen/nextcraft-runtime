@@ -41,6 +41,7 @@ import com.nextcraft.forge.R
 import com.nextcraft.forge.runtime.BatteryOptimization
 import com.nextcraft.forge.model.AgentKind
 import com.nextcraft.forge.model.DevStack
+import com.nextcraft.forge.runtime.RuntimeInstaller
 import com.nextcraft.forge.runtime.RuntimeSetupStatus
 import com.nextcraft.forge.runtime.AndroidToolchain
 import com.nextcraft.forge.runtime.WorkspaceSnapshot
@@ -78,6 +79,15 @@ fun ToolchainsScreen(state: ForgeUiState, viewModel: MainViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stack.displayLabel(), fontSize = ForgeType.rowTitle, fontWeight = FontWeight.SemiBold)
                         Text(stack.displayDescription(), fontSize = ForgeType.secondary, color = scheme.onSurfaceVariant)
+                        // Only stacks shipped as a runtime bundle have a known size; apt-based ones (C/C++, PHP) do not.
+                        val downloadBytes = stack.downloadBytes()
+                        if (!installed && downloadBytes != null) {
+                            Text(
+                                stringResource(R.string.tool_download_size, formatDownloadSize(downloadBytes)),
+                                fontSize = ForgeType.secondary,
+                                color = scheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     when {
                         stack == DevStack.WEB -> Text(stringResource(R.string.tool_core), fontSize = ForgeType.secondary, color = LocalForgeThemeTokens.current.accentText)
@@ -107,7 +117,7 @@ fun ToolchainsScreen(state: ForgeUiState, viewModel: MainViewModel) {
                             stringResource(R.string.tool_ndk_desc, AndroidToolchain.NDK_VERSION)
                         } else {
                             stringResource(R.string.tool_ndk_desc, AndroidToolchain.NDK_VERSION) + " · " +
-                                stringResource(R.string.tool_download_size, AndroidToolchain.NDK_DOWNLOAD_NOTE)
+                                stringResource(R.string.tool_download_size, formatDownloadSize(AndroidToolchain.NDK_DOWNLOAD_BYTES))
                         },
                         fontSize = ForgeType.secondary,
                         color = scheme.onSurfaceVariant,
@@ -145,7 +155,7 @@ fun ToolchainsScreen(state: ForgeUiState, viewModel: MainViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(agent.displayTitle(), fontSize = ForgeType.rowTitle, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = if (installed) stringResource(R.string.settings_agent_installed) else stringResource(R.string.tool_download_size, agent.downloadNote),
+                            text = if (installed) stringResource(R.string.settings_agent_installed) else stringResource(R.string.tool_download_size, agent.downloadSizeLabel()),
                             fontSize = ForgeType.secondary,
                             color = scheme.onSurfaceVariant,
                         )
@@ -358,4 +368,16 @@ fun CheckpointsScreen(state: ForgeUiState, viewModel: MainViewModel) {
             dismissButton = { ForgeTextButton(onClick = { pendingRestore = null }) { Text(stringResource(R.string.projects_cancel)) } },
         )
     }
+}
+
+private fun DevStack.downloadBytes(): Long? = when (this) {
+    DevStack.PYTHON -> RuntimeInstaller.PYTHON_BUNDLE.compressedBytes
+    DevStack.ANDROID -> RuntimeInstaller.ANDROID_BUNDLE.compressedBytes
+    else -> null
+}
+
+/** DeepSeek's size comes from its pinned bundle so it cannot drift; the other agents' notes are fixed text. */
+internal fun AgentKind.downloadSizeLabel(): String = when (this) {
+    AgentKind.DEEPSEEK_HARNESS -> formatDownloadSize(RuntimeInstaller.DSH_BUNDLE.compressedBytes)
+    else -> downloadNote
 }

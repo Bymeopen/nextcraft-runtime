@@ -185,16 +185,43 @@ if ! is_mounted "$ROOTFS"; then
 fi
 mount -o remount,bind,suid,exec "$ROOTFS" 2>/dev/null || true
 
-mount_once "/dev" "$ROOTFS/dev" "bind" "rw"
-mount_once "/dev/pts" "$ROOTFS/dev/pts" "bind" "rw"
+# The agent runs as real root, so /dev is a tmpfs with only harmless nodes bound in. Binding the host /dev would expose
+# raw partitions (/dev/block/*) and every other device node to it. /dev/__properties__ is read-only: Bionic tools
+# (aapt2) map it to read system properties.
+dev_fstype() {
+    while read -r _ mp fs _; do
+        [ "$mp" = "$1" ] && { printf '%s' "$fs"; return 0; }
+    done < /proc/mounts
+    return 1
+}
+mount_dev_node() {
+    local src="$1"
+    local dst="$ROOTFS$1"
+    local mode="${2:-rw}"
+    [ -e "$src" ] || return 0
+    is_mounted "$dst" && return 0
+    if [ -d "$src" ]; then mkdir -p "$dst"; else ( : > "$dst" ) 2>/dev/null || return 0; fi
+    mount -o bind "$src" "$dst" 2>/dev/null || return 0
+    [ "$mode" = "ro" ] && mount -o remount,bind,ro "$dst" 2>/dev/null
+    return 0
+}
+mount_once "tmpfs" "$ROOTFS/dev" "tmpfs" "rw,nosuid,mode=755,size=1M"
+# A /dev left as a full host bind by an older version is not touched here (nodes would be bound onto the host /dev);
+# unmount-chroot.sh clears it and the next start mounts the tmpfs.
+if [ "$(dev_fstype "$ROOTFS/dev")" = "tmpfs" ]; then
+    for node in null zero full random urandom tty; do
+        mount_dev_node "/dev/$node"
+    done
+    mount_dev_node "/dev/__properties__" ro
+    mount_once "/dev/pts" "$ROOTFS/dev/pts" "bind" "rw"
+    [ -e "$ROOTFS/dev/ptmx" ] || ln -sf pts/ptmx "$ROOTFS/dev/ptmx" 2>/dev/null || true
+fi
 mount_once "proc" "$ROOTFS/proc" "proc" "rw,nosuid,nodev,noexec"
 mount_once "sysfs" "$ROOTFS/sys" "sysfs" "rw,nosuid,nodev,noexec"
 TMP_MB="${NEXTCRAFT_TMP_MB:-512}"
 SHM_MB="${NEXTCRAFT_SHM_MB:-256}"
 mount_once "tmpfs" "$ROOTFS/tmp" "tmpfs" "rw,nosuid,nodev,mode=1777,size=${TMP_MB}M"
 mount_once "tmpfs" "$ROOTFS/dev/shm" "tmpfs" "rw,nosuid,nodev,mode=1777,size=${SHM_MB}M"
-mkdir -p "$ROOTFS/tmp/.proot-tmp" "$ROOTFS/tmp/.proot-l2s" 2>/dev/null || true
-chmod 1777 "$ROOTFS/tmp/.proot-tmp" "$ROOTFS/tmp/.proot-l2s" 2>/dev/null || true
 if [ ! -e "$ROOTFS/dev/fd" ]; then
     ln -sf /proc/self/fd "$ROOTFS/dev/fd" 2>/dev/null || true
 fi
@@ -334,8 +361,6 @@ if [ -z "$NODE_OPTIONS" ]; then
     export NODE_OPTIONS="--dns-result-order=ipv4first --max-old-space-size=$NODE_HEAP_MB"
 fi
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
-export PROOT_TMP_DIR="${PROOT_TMP_DIR:-/tmp/.proot-tmp}"
-export PROOT_L2S_DIR="${PROOT_L2S_DIR:-/tmp/.proot-l2s}"
 export UV_USE_IO_URING=0
 export UV_THREADPOOL_SIZE="${UV_THREADPOOL_SIZE:-4}"
 export GODEBUG="${GODEBUG:-asyncpreemptoff=1}"
@@ -351,7 +376,6 @@ case ":$PATH:" in
 esac
 
 CHROOT_BIN=""
-PROOT_BIN=""
 for candidate in /system/bin/chroot /system/xbin/chroot /sbin/chroot /debug_ramdisk/chroot "$ROOTFS/usr/sbin/chroot"; do
     if [ -x "$candidate" ]; then
         CHROOT_BIN="$candidate"
@@ -362,16 +386,8 @@ if [ -z "$CHROOT_BIN" ]; then
     if command -v busybox >/dev/null 2>&1; then
         CHROOT_BIN="busybox chroot"
     else
-        for pcand in "$ROOTFS/usr/bin/proot" "$ROOTFS/usr/local/bin/proot" /system/bin/proot /data/data/com.termux/files/usr/bin/proot; do
-            if [ -x "$pcand" ]; then
-                PROOT_BIN="$pcand"
-                break
-            fi
-        done
-        if [ -z "$PROOT_BIN" ]; then
-            echo "chroot or proot binary not found on host or guest rootfs" >&2
-            exit 127
-        fi
+        echo "chroot binary not found on host or guest rootfs" >&2
+        exit 127
     fi
 fi
 
@@ -415,21 +431,9 @@ reap_group() {
 }
 
 exec 9>&-
-if [ -n "$CHROOT_BIN" ]; then
-    $SETSID $CHROOT_BIN "$ROOTFS" /usr/bin/env \
-        GUEST_WORKSPACE="$GUEST_WORKSPACE" \
-        /bin/sh -c 'cd "$GUEST_WORKSPACE" && exec "$@"' -- "$@" <&3 3<&- &
-else
-    $SETSID "$PROOT_BIN" --root-id --link2symlink --sysvipc --kill-on-exit \
-        -r "$ROOTFS" \
-        -b /dev -b /dev/urandom:/dev/random -b /proc -b /proc/self/fd:/dev/fd -b /sys -b /system -b /apex -b /vendor -b /product \
-        -b "$HOST_WORKSPACE:$GUEST_WORKSPACE" \
-        -b "$HOST_BRIDGE:/nextcraft-bridge" \
-        -b "$HOST_RESP:/nextcraft-bridge-responses" \
-        -w "$GUEST_WORKSPACE" \
-        /usr/bin/env GUEST_WORKSPACE="$GUEST_WORKSPACE" \
-        /bin/sh -c 'cd "$GUEST_WORKSPACE" && exec "$@"' -- "$@" <&3 3<&- &
-fi
+$SETSID $CHROOT_BIN "$ROOTFS" /usr/bin/env \
+    GUEST_WORKSPACE="$GUEST_WORKSPACE" \
+    /bin/sh -c 'cd "$GUEST_WORKSPACE" && exec "$@"' -- "$@" <&3 3<&- &
 child=$!
 trap 'forward_signal INT' INT
 trap 'forward_signal TERM' TERM

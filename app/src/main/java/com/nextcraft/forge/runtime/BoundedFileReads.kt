@@ -211,7 +211,6 @@ internal fun java.io.File.deleteRecursivelyNoFollow(): Boolean {
 internal fun java.io.File.deleteRecursivelyNoFollowOrRoot(): Boolean {
     deleteRecursivelyNoFollow()
     if (!exists() && !java.nio.file.Files.isSymbolicLink(toPath())) return true
-    if (!RuntimeEngines.isRootEngine()) return false
     runCatching {
         // rm does not follow symlinks inside the tree; the path is single-quoted.
         val process = ProcessBuilder("su", "-c", "rm -rf -- ${shellSingleQuote(absolutePath)}")

@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "com.nextcraft.forge"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.nextcraft.forge"
@@ -16,10 +18,10 @@ android {
         // The release workflow passes -PversionCode=... -PversionName=...; local builds keep the defaults.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 100
         versionName = (project.findProperty("versionName") as String?) ?: "1.0.0-forge"
-        // Side-by-side test builds (not the PRoot edition) carry a stamp so each build can be told apart on the device:
+        // Side-by-side test builds carry a stamp so each build can be told apart on the device:
         // Settings shows versionName as "<version>-x.<git sha>[+dirty].<stamp>", versionCode comes from -Pnextcraft.buildCode.
         // The stamp is passed on the command line (not read from the clock here) so the configuration cache cannot reuse a stale one.
-        (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() && it != "proot" }?.let { suffix ->
+        (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() }?.let { suffix ->
             fun git(vararg args: String): String = providers.exec {
                 commandLine("git", *args)
                 isIgnoreExitValue = true
@@ -65,11 +67,7 @@ android {
         // A fixed, public debug key: CI runners otherwise sign each debug APK with a fresh random key, so a newer
         // build cannot be installed over an older one and the app (rootfs, chats, root grant) must be uninstalled.
         create("sharedDebug") {
-            // The PRoot edition keeps the debug key of the earlier PRoot fork (1.0.0-proot.200), so a copy installed from
-            // that fork still updates in place: Android refuses an update signed with a different key.
-            storeFile = file(
-                if ((project.findProperty("nextcraft.sideBySideSuffix") as String?) == "proot") "debug-proot.keystore" else "debug.keystore",
-            )
+            storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
@@ -99,9 +97,9 @@ android {
         }
     }
 
-    (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() }?.let { suffix ->
-        // The PRoot edition (com.nextcraft.forge.proot) has its own name; any other suffix is a throw-away test build.
-        sourceSets.getByName("debug").res.srcDir(if (suffix == "proot") "src/proot/res" else "src/sideBySide/res")
+    (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() }?.let {
+        // A side-by-side build is a throw-away test build with its own name ("NextCraft Dev X").
+        sourceSets.getByName("debug").res.srcDir("src/sideBySide/res")
     }
 
     compileOptions {
@@ -182,10 +180,6 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-        // libproot.so (src/main/jniLibs) is executed, not dlopen'ed: it must be extracted to nativeLibraryDir.
-        jniLibs {
-            useLegacyPackaging = true
         }
     }
 }

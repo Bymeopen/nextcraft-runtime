@@ -2,7 +2,7 @@
 
 > **Identitas Proyek**: **NextCraft Forge** (`com.nextcraft.forge`) — Autonomous Mobile AI Coding IDE & Native Android Build System  
 > **Basis**: NextCraft Forge (`com.nextcraft.forge`, v2.0, turunan termodifikasi dari Mobile Harness (MIT)). Atribusi lisensi & inspirasi konseptual pihak ketiga: lihat [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).  
-> **Mesin Runtime Dual-Engine**: **Primary Root Chroot (`su -mm` + Linux Kernel Mounts)** dengan **Automatic Non-Root PRoot Fallback (`libproot.so`)** di atas **Ubuntu 24.04.5 LTS (`noble`) ARM64** (`ProotAndChrootOptimizer` + `DeviceHardwareOptimizer`)  
+> **Mesin Runtime**: **Root Chroot (`su -mm` + Linux Kernel Mounts)** di atas **Ubuntu 24.04.5 LTS (`noble`) ARM64** (`ChrootOptimizer` + `DeviceHardwareOptimizer`). Aplikasi ini hanya untuk perangkat root; jalur cadangan PRoot sudah dibuang  
 > **Strategi AI**: **Multi-Agent CLI Harness (`Claude Code`, `Antigravity CLI`, `DeepSeek Harness`) + Cloud AI Providers via On-Device Loopback Gateway + Built-in Forge MCP Server & Reference Index (`forge_reference_*`)** (Tanpa Local LLM Engine / Tanpa Fine-Tuning)  
 > **Prinsip Dokumen**: **100% Faktual, Tanpa Placeholder, Tanpa Halusinasi**. Setiap bagian dari *Master Engineering Prompt (Fase 1 s/d Fase 7)* dieksekusi menggunakan arsitektur nyata **Zero-Cloud On-Device** NextCraft Forge.
 

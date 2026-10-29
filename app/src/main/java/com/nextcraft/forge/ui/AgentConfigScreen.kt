@@ -166,7 +166,7 @@ fun AgentConfigScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.settings_agent_install_hint, agent.downloadNote),
+                        text = stringResource(R.string.settings_agent_install_hint, agent.downloadSizeLabel()),
                         fontSize = ForgeType.control,
                         color = scheme.onSurfaceVariant,
                     )

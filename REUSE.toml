@@ -53,13 +53,6 @@ precedence = "override"
 SPDX-FileCopyrightText = ["2026 NextCraft Forge contributors", "2026 Mobile Harness Contributors"]
 SPDX-License-Identifier = "GPL-3.0-only AND MIT"
 
-# Bundled PRoot v5.5.0 + talloc 2.4.3 (Section 5).
-[[annotations]]
-path = ["app/src/main/jniLibs/arm64-v8a/libproot.so", "app/src/main/jniLibs/arm64-v8a/libproot_loader.so"]
-precedence = "override"
-SPDX-FileCopyrightText = ["The PRoot Developers", "Samba Team (talloc)"]
-SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-3.0-or-later"
-
 # Gradle Wrapper (Apache-2.0, original Gradle authors).
 [[annotations]]
 path = ["gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties"]

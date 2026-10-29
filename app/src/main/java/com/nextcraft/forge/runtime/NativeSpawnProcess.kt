@@ -97,7 +97,7 @@ internal class NativeSpawnProcess private constructor(
             return
         }
         // If NativeSpawn.kill returns non-zero (e.g. EPERM when signalling a root-owned process group),
-        // killViaRootIfNeeded escalates via `su -c` with a 2s timeout ONLY when RuntimeEngines.isRootEngine() is true.
+        // killViaRootIfNeeded escalates via `su -c` with a 2s timeout.
         if (NativeSpawn.kill(pid, 15) != 0) {
             killViaRootIfNeeded(pid, 15)
         }
@@ -137,7 +137,7 @@ internal class NativeSpawnProcess private constructor(
 
     private fun killViaRootIfNeeded(targetPid: Int, sig: Int) {
         // Guard against -1 (all processes), 0 (current process group), and 1 (init).
-        if (targetPid <= 1 || !RuntimeEngines.isRootEngine()) return
+        if (targetPid <= 1) return
         runCatching {
             val proc = ProcessBuilder("su", "-c", "kill -s $sig -$targetPid $targetPid 2>/dev/null || true").start()
             if (!proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {

@@ -44,11 +44,8 @@ fun MainViewModel.selectTab(tab: ForgeTab) {
 }
 
 fun MainViewModel.selectAgent(agent: AgentKind) {
-    // Switching bridges mid-run on the same chat would misroute pending tool approvals; other chats/projects can keep running.
-    if (_state.value.activeChatRunning) {
-        _state.update { it.copy(bannerMessage = UiText.res(R.string.msg_agent_switch_busy)) }
-        return
-    }
+    // Each ChatRun holds its own isolated bridge instance, so switching or configuring agents in Atur AI
+    // or ChatRoutingSheet is safe even while a chat turn is running; the new choice applies to the next turn.
     preferences.agentKind = agent.stableId
     applyAgent(agent)
     // The choice belongs to this chat only: other chats keep their own agent when they are opened.

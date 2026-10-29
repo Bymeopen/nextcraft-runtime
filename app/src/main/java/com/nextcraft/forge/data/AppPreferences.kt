@@ -83,7 +83,6 @@ class AppPreferences(private val context: Context) {
             store.edit {putBoolean("initial_language_selected", value)}
         }
 
-    var runtimeEngine: String by strPref("runtime_engine", "auto")
     var agentKind: String by strPref("agent_kind", AgentKind.CLAUDE_CODE.stableId)
 
     var routing: RoutingConfig

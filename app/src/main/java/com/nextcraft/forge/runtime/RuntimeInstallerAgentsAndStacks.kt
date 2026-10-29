@@ -225,7 +225,6 @@ fun RuntimeInstaller.clearGitHubAccess() {
 fun RuntimeInstaller.hasClaudeLoginCredential(): Boolean {
     val file = File(rootfs, "root/.claude/.credentials.json")
     if (file.isFile && runCatching { file.readText().contains("\"refreshToken\"") }.getOrDefault(false)) return true
-    if (!RuntimeEngines.isRootEngine()) return false
     val quoted = shellSingleQuote(file.absolutePath)
     return runCatching {
         val process = ProcessBuilder("su", "-c", "grep -q '\"refreshToken\"' $quoted").start()
@@ -333,9 +332,6 @@ internal suspend fun RuntimeInstaller.updateClaude(
     expectedVersion: String,
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
 ) {
-    check(RuntimeEngines.current() != RuntimeEngine.PROOT) {
-        "Claude Code stays at ${RuntimeInstaller.CLAUDE_NPM_VERSION} on the PRoot engine: newer releases are Bun binaries that Android's app sandbox cannot run without root."
-    }
     val latest = JSONObject(fetchText("https://registry.npmjs.org/@anthropic-ai/claude-code/latest")).getString("version")
     check(latest == expectedVersion) { "A newer Claude Code release is available. Refresh updates and try again." }
     installClaudeRelease(runtime, latest, onProgress)
@@ -580,43 +576,11 @@ internal suspend fun RuntimeInstaller.ensureClaudeInstalled(
 ) {
     migrateLegacyClaudeMarker()
     if (isAgentInstalled(AgentKind.CLAUDE_CODE)) return
-    if (RuntimeEngines.current() == RuntimeEngine.PROOT) {
-        installClaudeViaNpm(chrootExec, fraction, onProgress)
-        return
-    }
     val version = latestClaudeVersion()
     onProgress(RuntimeInstallProgress("Installing Claude Code $version…", fraction))
     installClaudeRelease(InstalledRuntime(chrootExec, rootfs), version, onProgress, fraction..0.995f)
     migrateLegacyClaudeMarker()
     require(claudeMarker.readTextOrNull() == version) { "Claude Code installation is incomplete" }
-}
-
-/**
- * Non-root devices (PRoot): Android's seccomp policy for apps kills the Bun-built `claude` binary with SIGSYS
- * (Bun registers `rseq` itself, which the policy forbids; glibc programs survive via GLIBC_TUNABLES). The last
- * npm release that still ships cli.js for plain Node is installed instead, at the same guest path and marker.
- */
-internal suspend fun RuntimeInstaller.installClaudeViaNpm(
-    chrootExec: File,
-    fraction: Float,
-    onProgress: suspend (RuntimeInstallProgress) -> Unit,
-) {
-    val version = RuntimeInstaller.CLAUDE_NPM_VERSION
-    check(RuntimeInstaller.CLAUDE_VERSION_PATTERN.matches(version)) { "Invalid Claude Code version" }
-    runGuestCommand(
-        chrootExec = chrootExec,
-        command = "set -e; dir=${RuntimeInstaller.CLAUDE_NPM_GUEST_DIR}; rm -rf \"${'$'}dir\"; mkdir -p \"${'$'}dir\"; cd \"${'$'}dir\"; " +
-            "npm init -y >/dev/null; npm install --omit=dev --no-audit --no-fund @anthropic-ai/claude-code@$version; " +
-            "ln -sfn ${RuntimeInstaller.CLAUDE_NPM_GUEST_DIR}/node_modules/.bin/claude ${RuntimeInstaller.CLAUDE_GUEST_PATH}",
-        displayCommand = "npm install @anthropic-ai/claude-code@$version",
-        fraction = fraction,
-        timeoutMs = 20 * 60 * 1_000L,
-        onProgress = onProgress,
-        failureMessage = "Failed to install Claude Code from npm",
-    )
-    verifyGuest(chrootExec, "${RuntimeInstaller.CLAUDE_GUEST_PATH} --version", "Failed to verify Claude Code")
-    claudeMarker.writeText(version)
-    onProgress(RuntimeInstallProgress("Installed Claude Code $version (npm, PRoot)", 0.995f))
 }
 
 internal suspend fun RuntimeInstaller.ensureAgyInstalled(

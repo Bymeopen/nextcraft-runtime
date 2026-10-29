@@ -304,7 +304,7 @@ class AntigravityRuntimeBridge(
                     "for p in \$(pgrep -f 'org[.]gradle[.]launcher[.]GradleMain' 2>/dev/null); do " +
                     "state=\$(awk '/^State:/{print \$2}' /proc/\$p/status 2>/dev/null); " +
                     "[ \"\$state\" = \"T\" ] && kill -9 \$p 2>/dev/null; done; true"
-                val shellArgs = if (RuntimeEngines.isRootEngine()) listOf("su", "-c", cmd) else listOf("/system/bin/sh", "-c", cmd)
+                val shellArgs = listOf("su", "-c", cmd)
                 val reaper = ProcessBuilder(shellArgs)
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.to(File("/dev/null")))
@@ -334,7 +334,7 @@ class AntigravityRuntimeBridge(
                     }
                     append("true")
                 }
-                val shellArgs = if (RuntimeEngines.isRootEngine()) listOf("su", "-c", cmd) else listOf("/system/bin/sh", "-c", cmd)
+                val shellArgs = listOf("su", "-c", cmd)
                 val tuner = ProcessBuilder(shellArgs)
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.to(File("/dev/null")))

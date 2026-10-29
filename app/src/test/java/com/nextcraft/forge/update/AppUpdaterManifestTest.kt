@@ -50,15 +50,15 @@ class AppUpdaterManifestTest {
     }
 
     @Test
-    fun aManifestForTheProotPackageIsOnlyOfferedToThatPackage() {
-        val proot = "com.nextcraft.forge.proot"
+    fun aManifestForAnotherPackageIsOnlyOfferedToThatPackage() {
+        val other = "com.nextcraft.forge.x"
         val manifest = JSONObject(
-            """{"packageName":"$proot","versionCode":2047,"versionName":"1.0.47-forge",
+            """{"packageName":"$other","versionCode":2047,"versionName":"1.0.47-forge",
                 "artifacts":{"debug":{"url":"https://x/p.apk","sha256":"ef","sizeBytes":30}}}""",
         )
-        assertNotNull(AppUpdater.parseManifest(manifest, proot, currentVersionCode = 1200, variant = "debug"))
-        // The main app reading the PRoot manifest, or the reverse, must not be offered an APK it would have to reject.
+        assertNotNull(AppUpdater.parseManifest(manifest, other, currentVersionCode = 1200, variant = "debug"))
+        // The main app reading another package's manifest, or the reverse, must not be offered an APK it would have to reject.
         assertNull(AppUpdater.parseManifest(manifest, pkg, currentVersionCode = 1, variant = "debug"))
-        assertNull(AppUpdater.parseManifest(manifest(), proot, currentVersionCode = 1, variant = "debug"))
+        assertNull(AppUpdater.parseManifest(manifest(), other, currentVersionCode = 1, variant = "debug"))
     }
 }

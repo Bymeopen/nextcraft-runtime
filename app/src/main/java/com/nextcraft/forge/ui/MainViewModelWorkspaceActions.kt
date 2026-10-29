@@ -118,7 +118,6 @@ import com.nextcraft.forge.runtime.findDebugApk
 import com.nextcraft.forge.runtime.hasAndroidLogcatAccess
 import com.nextcraft.forge.runtime.inferAndroidBuildStage
 import com.nextcraft.forge.runtime.RuntimeEngine
-import com.nextcraft.forge.runtime.RuntimeEngineChoice
 import com.nextcraft.forge.runtime.RuntimeEngines
 import com.nextcraft.forge.runtime.parseAndroidBuildIssues
 import com.nextcraft.forge.runtime.readBoundedText
@@ -391,10 +390,6 @@ fun MainViewModel.fixCiFailureWithAgent(workflowName: String, branch: String, ur
 
 fun MainViewModel.captureUiInspectorHierarchy() {
     if (_state.value.uiInspectorBusy) return
-    if (!RuntimeEngines.isRootEngine()) {
-        _state.update { it.copy(uiInspectorNodes = emptyList(), bannerMessage = UiText.res(R.string.mt_root_required)) }
-        return
-    }
     _state.update { it.copy(uiInspectorBusy = true) }
     viewModelScope.launch {
         val nodes = withContext(Dispatchers.IO) {

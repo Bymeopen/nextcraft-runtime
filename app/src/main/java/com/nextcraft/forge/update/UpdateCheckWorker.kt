@@ -26,7 +26,8 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
     private fun canInstallNow(): Boolean {
         if (com.nextcraft.forge.runtime.RuntimeTaskController.hasActiveTask()) return false
         // The silent install needs root. Without it the APK would be downloaded in full every 15 minutes for nothing.
-        return com.nextcraft.forge.runtime.RuntimeEngines.isRootEngine()
+        // detect() is cached after the first call, so this only blocks (off the main thread) once per process.
+        return com.nextcraft.forge.runtime.RuntimeEngines.detect(applicationContext) != null
     }
 
     /** Downloads (verified by [AppUpdater]) and starts the silent install. False means nothing changed. */

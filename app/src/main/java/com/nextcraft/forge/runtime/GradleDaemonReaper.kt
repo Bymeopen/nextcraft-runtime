@@ -32,7 +32,7 @@ internal object GradleDaemonReaper {
         lowMemory || level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
 
     private fun shellArgv(): List<String> =
-        if (RuntimeEngines.isRootEngine()) listOf("su", "-c", STOP_IDLE_SCRIPT) else listOf("/system/bin/sh", "-c", STOP_IDLE_SCRIPT)
+        listOf("su", "-c", STOP_IDLE_SCRIPT)
 
     fun stopIdleNow(onComplete: (() -> Unit)? = null) {
         Thread({

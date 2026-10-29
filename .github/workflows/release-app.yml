@@ -19,6 +19,11 @@ on:
         description: Release notes
         required: false
         default: ""
+      prerelease:
+        description: Publish as a pre-release. It is never "latest", so the in-app updater (releases/latest) ignores it. Required for tags with a suffix such as v1.0.126-beta.1.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -57,7 +62,10 @@ jobs:
           VERSION_CODE: ${{ inputs.version_code }}
           VERSION_NAME: ${{ inputs.version_name }}
           NOTES: ${{ inputs.notes }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
+          # A tag with a suffix (-beta.1, -rc.1) must not become the "latest" release every installed app updates to.
+          if [[ "$TAG" == *-* && "$PRERELEASE" != "true" ]]; then echo "Tag $TAG has a suffix: set prerelease=true"; exit 1; fi
           # Reject anything that is not a plain tag / version before it reaches shell and gh.
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || { echo "Bad tag: $TAG"; exit 1; }
           # Gradle falls back to versionCode 100 for anything that is not an Int, which would publish a manifest no device accepts.
@@ -76,7 +84,10 @@ jobs:
           TAG: ${{ inputs.tag }}
           VERSION_NAME: ${{ inputs.version_name }}
           NOTES: ${{ inputs.notes }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
+          # A pre-release is never "latest" (GitHub does not allow both), so the in-app updater keeps reading the last stable release.
+          if [ "$PRERELEASE" = "true" ]; then CHANNEL_FLAG="--prerelease"; else CHANNEL_FLAG="--latest"; fi
           # Tag the commit that was built, not whatever the default branch points to when run from another ref.
           gh release create "$TAG" dist/*.apk dist/update-manifest.json --target "$GITHUB_SHA" \
-            --title "NextCraft Forge $VERSION_NAME" --notes "$NOTES" --latest
+            --title "NextCraft Forge $VERSION_NAME" --notes "$NOTES" "$CHANNEL_FLAG"

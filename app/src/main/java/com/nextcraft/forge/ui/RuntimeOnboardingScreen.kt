@@ -105,18 +105,12 @@ internal fun RuntimeOnboardingScreen(
                         "${stringResource(R.string.shell_requires_ram_6gb)} (${state.totalRamLabel})"
                     },
                 )
-                val executionEngineReady = state.rootAvailable || state.prootAvailable
-                val engineSummaryRes = when {
-                    state.rootAvailable -> R.string.shell_root_granted
-                    state.prootAvailable -> R.string.shell_proot_fallback
-                    else -> R.string.shell_root_required
-                }
                 EnvironmentCheckItem(
                     titleText = stringResource(R.string.shell_check_root),
-                    passed = executionEngineReady,
-                    summaryText = stringResource(engineSummaryRes),
+                    passed = state.rootAvailable,
+                    summaryText = stringResource(if (state.rootAvailable) R.string.shell_root_granted else R.string.shell_root_required),
                 )
-                if (!executionEngineReady) {
+                if (!state.rootAvailable) {
                     Text(
                         text = stringResource(R.string.onb_root_help),
                         fontSize = ForgeType.secondary,
