@@ -960,6 +960,7 @@
     <string name="notif_setup_attention">Настройка среды требует внимания</string>
     <string name="notif_setup_error">При настройке среды произошла ошибка.</string>
     <string name="rt_auth_unsupported_process">Неподдерживаемый процесс входа.</string>
+    <string name="rt_auth_native_spawn_missing">В этой сборке нет нативного помощника терминала (libforgespawn.so, нужна сборка с NDK), поэтому вход не может начаться. Установите релизную сборку.</string>
     <string name="rt_auth_timeout">Время входа истекло. Начните вход заново.</string>
     <string name="rt_auth_claude_failed_retry">Не удалось войти в Claude. Начните вход заново.</string>
     <string name="rt_auth_claude_ended">Вход в Claude прерван до завершения (код %1$d).</string>

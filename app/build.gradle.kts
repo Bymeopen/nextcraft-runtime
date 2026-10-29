@@ -134,6 +134,14 @@ android {
     if (!ndkAvailable && project.hasProperty("requireNdk")) {
         throw GradleException("NDK not found (set ANDROID_NDK_HOME); libforgespawn.so would be skipped.")
     }
+    // Phones without an NDK (the on-device build host) cannot compile libforgespawn.so. -Pnextcraft.prebuiltJniDir=<dir>
+    // (holding arm64-v8a/libforgespawn.so, e.g. copied from an installed release build) packages it into debug builds
+    // so the native spawner and its pseudo-terminal are used instead of the ProcessBuilder fallback.
+    if (!ndkAvailable) {
+        (project.findProperty("nextcraft.prebuiltJniDir") as String?)?.takeIf { it.isNotBlank() }?.let { dir ->
+            sourceSets.getByName("debug").jniLibs.srcDir(dir)
+        }
+    }
     if (ndkAvailable) {
         // AGP prefers its own default NDK and fails when only another version is installed,
         // so pin to the version found under <sdk>/ndk when there is exactly one.

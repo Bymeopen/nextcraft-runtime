@@ -131,6 +131,11 @@ class AntigravityAuthController(
                 runCatching { proc.destroyForcibly() }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
                 throw UiTextException(UiText.res(R.string.rt_auth_unsupported_process))
             }
+            if (!proc.isNativeSpawn) {
+                // The ProcessBuilder fallback has no pty, so agy's sign-in screen can never start: say so instead of spinning forever.
+                runCatching { proc.destroyForcibly() }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
+                throw UiTextException(UiText.res(R.string.rt_auth_native_spawn_missing))
+            }
             proc
         } catch (err: Throwable) {
             if (BuildConfig.DEBUG) writeDebugSnapshot("spawn failed ${err::class.java.simpleName}: ${err.message}", null)

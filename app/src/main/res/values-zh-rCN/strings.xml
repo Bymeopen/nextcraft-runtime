@@ -909,6 +909,7 @@
     <string name="notif_setup_attention">运行环境设置需要处理</string>
     <string name="notif_setup_error">运行环境设置遇到错误。</string>
     <string name="rt_auth_unsupported_process">不支持的登录流程。</string>
+    <string name="rt_auth_native_spawn_missing">此版本缺少原生终端组件(libforgespawn.so,需要使用 NDK 构建),因此无法开始登录。请安装发布版本。</string>
     <string name="rt_auth_timeout">登录超时。请重新开始登录。</string>
     <string name="rt_auth_claude_failed_retry">Claude 登录失败。请重新开始登录。</string>
     <string name="rt_auth_claude_ended">Claude 登录在完成前结束（代码 %1$d）。</string>

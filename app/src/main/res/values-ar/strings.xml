@@ -994,6 +994,7 @@
     <string name="notif_setup_attention">إعداد بيئة التشغيل يحتاج إلى انتباهك</string>
     <string name="notif_setup_error">واجه إعداد بيئة التشغيل خطأ.</string>
     <string name="rt_auth_unsupported_process">عملية تسجيل دخول غير مدعومة.</string>
+    <string name="rt_auth_native_spawn_missing">لا يتضمن هذا الإصدار مساعد الطرفية الأصلي (libforgespawn.so، ويتطلب بناءً باستخدام NDK)، لذا لا يمكن بدء تسجيل الدخول. ثبّت إصدار الإطلاق.</string>
     <string name="rt_auth_timeout">انتهت مهلة تسجيل الدخول. ابدأ تسجيل الدخول مرة أخرى.</string>
     <string name="rt_auth_claude_failed_retry">فشل تسجيل الدخول إلى Claude. ابدأ تسجيل الدخول مرة أخرى.</string>
     <string name="rt_auth_claude_ended">انتهى تسجيل الدخول إلى Claude قبل اكتماله (الرمز %1$d).</string>
