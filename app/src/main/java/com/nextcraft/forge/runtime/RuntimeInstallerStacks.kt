@@ -687,3 +687,97 @@ internal suspend fun RuntimeInstaller.aptRemove(
         failureMessage = "Could not remove packages: $packageNames",
     )
 }
+
+fun RuntimeInstaller.isNdkInstalled(): Boolean =
+    File(rootfs, "${AndroidToolchain.NDK_VERSION_HOST_DIR}/source.properties").isFile ||
+        File(rootfs, AndroidToolchain.NDK_HOST_DIR).listFiles()?.any { File(it, "source.properties").isFile } == true
+
+suspend fun RuntimeInstaller.ensureNdkInstalled(
+    onProgress: suspend (RuntimeInstallProgress) -> Unit,
+) {
+    val runtime = installedRuntime()
+    if (isNdkInstalled() && File(rootfs, "${AndroidToolchain.SDK_HOST_DIR}/cmake/3.22.1/bin/ninja").exists()) {
+        onProgress(RuntimeInstallProgress("Android NDK ${AndroidToolchain.NDK_VERSION} is ready", 1f))
+        return
+    }
+    aptInstall(
+        runtime.chrootExec,
+        listOf("xz-utils", "cmake", "ninja-build"),
+        "Installing CMake, Ninja, and archive tools for NDK…",
+        0.10f,
+        onProgress,
+    )
+    val sdkGuest = AndroidToolchain.SDK_GUEST_DIR
+    if (!isNdkInstalled()) {
+        downloads.mkdirs()
+        val archive = File(downloads, "android-ndk-${AndroidToolchain.NDK_VERSION}-aarch64.tar.xz")
+        val downloadingLabel = "Downloading Android NDK ${AndroidToolchain.NDK_VERSION}…"
+        try {
+            downloadVerified(AndroidToolchain.NDK_RELEASE_URL, archive, AndroidToolchain.NDK_RELEASE_SHA256) { downloaded, total ->
+                val ratio = if (total > 0) downloaded.toFloat() / total else 0f
+                onProgress(RuntimeInstallProgress(downloadingLabel, 0.12f + ratio * 0.68f, downloaded, total.takeIf { it > 0 }))
+            }
+            val sdkHostDir = File(rootfs, AndroidToolchain.SDK_HOST_DIR).apply { mkdirs() }
+            val stagedArchive = File(sdkHostDir, ".ndk-archive.tar.xz")
+            archive.copyTo(stagedArchive, overwrite = true)
+            val extractCmd = listOf(
+                "set -euo pipefail",
+                "work=\$(mktemp -d $sdkGuest/.ndk-install.XXXXXX)",
+                "trap 'rm -rf \"\$work\" $sdkGuest/.ndk-archive.tar.xz' EXIT",
+                "mkdir -p \"\$work/x\"",
+                "tar -xJf $sdkGuest/.ndk-archive.tar.xz -C \"\$work/x\"",
+                "src=\$(find \"\$work/x\" -maxdepth 2 -name source.properties -printf '%h\\n' | head -1)",
+                "rev=\$(sed -n 's/^Pkg.Revision *= *//p' \"\$src/source.properties\" | head -1)",
+                "mkdir -p $sdkGuest/ndk",
+                "rm -rf \"$sdkGuest/ndk/\$rev\"",
+                "mv \"\$src\" \"$sdkGuest/ndk/\$rev\"",
+            ).joinToString("; ")
+            runGuestCommand(
+                chrootExec = runtime.chrootExec,
+                command = extractCmd,
+                displayCommand = "Extracting Android NDK ${AndroidToolchain.NDK_VERSION}…",
+                fraction = 0.88f,
+                timeoutMs = 20 * 60_000L,
+                onProgress = onProgress,
+                failureMessage = "Failed to extract Android NDK ${AndroidToolchain.NDK_VERSION}",
+            )
+        } finally {
+            archive.delete()
+            File(rootfs, "${AndroidToolchain.SDK_HOST_DIR}/.ndk-archive.tar.xz").delete()
+        }
+    }
+    val cmakeBridgeCmd = listOf(
+        "set -euo pipefail",
+        "mkdir -p $sdkGuest/cmake/3.22.1/bin",
+        "ln -sf /usr/bin/cmake $sdkGuest/cmake/3.22.1/bin/cmake",
+        "ln -sf /usr/bin/ctest $sdkGuest/cmake/3.22.1/bin/ctest",
+        "ln -sf /usr/bin/cpack $sdkGuest/cmake/3.22.1/bin/cpack",
+        "ln -sf /usr/bin/ninja $sdkGuest/cmake/3.22.1/bin/ninja",
+        "printf 'Pkg.Desc = CMake 3.22.1 (system aarch64 bridge)\nPkg.Revision = 3.22.1\n' > $sdkGuest/cmake/3.22.1/source.properties",
+    ).joinToString("; ")
+    runGuestCommand(
+        chrootExec = runtime.chrootExec,
+        command = cmakeBridgeCmd,
+        displayCommand = "Configuring Android SDK CMake 3.22.1 & Ninja bridge…",
+        fraction = 0.94f,
+        timeoutMs = 2 * 60_000L,
+        onProgress = onProgress,
+        failureMessage = "Failed to configure Android SDK CMake 3.22.1 bridge",
+    )
+    verifyGuest(
+        runtime.chrootExec,
+        "test -f ${AndroidToolchain.NDK_GUEST_DIR}/source.properties && test -x ${AndroidToolchain.NDK_GUEST_DIR}/ndk-build && test -x $sdkGuest/cmake/3.22.1/bin/ninja",
+        "Failed to verify Android NDK ${AndroidToolchain.NDK_VERSION}",
+    )
+    onProgress(RuntimeInstallProgress("Android NDK ${AndroidToolchain.NDK_VERSION} is ready", 1f))
+}
+
+suspend fun RuntimeInstaller.removeNdk(
+    onProgress: suspend (RuntimeInstallProgress) -> Unit,
+) {
+    installedRuntime()
+    if (!isNdkInstalled()) return
+    onProgress(RuntimeInstallProgress("Removing Android NDK…", 0.3f, indeterminate = true))
+    removePath(File(rootfs, AndroidToolchain.NDK_HOST_DIR))
+    onProgress(RuntimeInstallProgress("Removed Android NDK", 1f))
+}

@@ -261,6 +261,9 @@
     <string name="tool_ssh_stop_tunnel">Stop tunnel</string>
     <string name="tool_ssh_test">Test</string>
     <string name="tool_ssh_user">User</string>
+    <string name="tool_sdk_components">SDK components</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">ARM64 C/C++ JNI toolchain, Clang/LLVM, CMake &amp; Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">Language stacks</string>
     <string name="tool_stop">Stop</string>
     <string name="tool_target_command">Shell command</string>

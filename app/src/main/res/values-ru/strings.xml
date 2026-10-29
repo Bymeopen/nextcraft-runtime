@@ -260,6 +260,9 @@
     <string name="tool_ssh_stop_tunnel">Остановить туннель</string>
     <string name="tool_ssh_test">Проверить</string>
     <string name="tool_ssh_user">Пользователь</string>
+    <string name="tool_sdk_components">Компоненты SDK</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">Инструментарий ARM64 C/C++ JNI, Clang/LLVM, CMake и Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">Языковые стеки</string>
     <string name="tool_stop">Стоп</string>
     <string name="tool_target_command">Команда оболочки</string>

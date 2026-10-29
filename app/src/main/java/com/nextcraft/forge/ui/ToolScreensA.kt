@@ -42,6 +42,7 @@ import com.nextcraft.forge.runtime.BatteryOptimization
 import com.nextcraft.forge.model.AgentKind
 import com.nextcraft.forge.model.DevStack
 import com.nextcraft.forge.runtime.RuntimeSetupStatus
+import com.nextcraft.forge.runtime.AndroidToolchain
 import com.nextcraft.forge.runtime.WorkspaceSnapshot
 import java.text.DateFormat
 import java.util.Date
@@ -88,6 +89,42 @@ fun ToolchainsScreen(state: ForgeUiState, viewModel: MainViewModel) {
                         else -> OutlinedButton(shape = RoundedCornerShape(100), onClick = { viewModel.installStack(stack) }, enabled = !running) {
                             Text(stringResource(R.string.tool_install))
                         }
+                    }
+                }
+            }
+        }
+        ToolSectionLabel(stringResource(R.string.tool_sdk_components))
+        ToolCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.tool_ndk_title, AndroidToolchain.NDK_VERSION),
+                        fontSize = ForgeType.rowTitle,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (state.ndkInstalled) {
+                            stringResource(R.string.tool_ndk_desc, AndroidToolchain.NDK_VERSION)
+                        } else {
+                            stringResource(R.string.tool_ndk_desc, AndroidToolchain.NDK_VERSION) + " · " +
+                                stringResource(R.string.tool_download_size, AndroidToolchain.NDK_DOWNLOAD_NOTE)
+                        },
+                        fontSize = ForgeType.secondary,
+                        color = scheme.onSurfaceVariant,
+                    )
+                }
+                if (state.ndkInstalled) {
+                    UninstallConfirmed(
+                        name = stringResource(R.string.tool_ndk_title, AndroidToolchain.NDK_VERSION),
+                        onConfirm = viewModel::removeNdk,
+                    ) { ask ->
+                        OutlinedButton(shape = RoundedCornerShape(100), onClick = ask, enabled = !busy) {
+                            Text(stringResource(R.string.tool_remove))
+                        }
+                    }
+                } else {
+                    OutlinedButton(shape = RoundedCornerShape(100), onClick = viewModel::installNdk, enabled = !running) {
+                        Text(stringResource(R.string.tool_install))
                     }
                 }
             }

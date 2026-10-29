@@ -260,6 +260,9 @@
     <string name="tool_ssh_stop_tunnel">Tunnel रोकें</string>
     <string name="tool_ssh_test">जाँचें</string>
     <string name="tool_ssh_user">यूज़र</string>
+    <string name="tool_sdk_components">SDK घटक</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">ARM64 C/C++ JNI टूलचेन, Clang/LLVM, CMake और Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">Language stacks</string>
     <string name="tool_stop">रोकें</string>
     <string name="tool_target_command">Shell कमांड</string>

@@ -260,6 +260,9 @@
     <string name="tool_ssh_stop_tunnel">إيقاف النفق</string>
     <string name="tool_ssh_test">اختبار</string>
     <string name="tool_ssh_user">المستخدم</string>
+    <string name="tool_sdk_components">مكونات SDK</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">أدوات ARM64 C/C++ JNI وClang/LLVM وCMake وNinja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">حزم اللغات</string>
     <string name="tool_stop">إيقاف</string>
     <string name="tool_target_command">أمر الطرفية</string>

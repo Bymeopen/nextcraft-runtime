@@ -418,6 +418,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 emptySet()
             }
+            val ndkReady = if (installed) {
+                withContext(Dispatchers.IO) { runCatching { installer.isNdkInstalled() }.getOrDefault(false) }
+            } else {
+                false
+            }
             // No project is possible: the user may have deleted them all.
             val firstProject = projects.firstOrNull()
             configureAllProjectRoots(projects)
@@ -459,6 +464,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     runtimeStatusLoaded = true,
                     selectedDevStacks = savedStacks,
                     installedDevStacks = installedStacks,
+                    ndkInstalled = ndkReady,
                     agentKind = savedAgent,
                     routing = preferences.routing,
                     themeMode = ForgeThemeMode.fromStored(preferences.themeMode).id,
@@ -554,6 +560,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 emptySet()
             }
+            val ndkReady = if (installed) {
+                withContext(Dispatchers.IO) { runCatching { installer.isNdkInstalled() }.getOrDefault(false) }
+            } else {
+                false
+            }
             val installedAgents = withContext(Dispatchers.IO) {
                 AgentKind.entries.filter { installer.isAgentInstalled(it) }.toSet()
             }
@@ -567,6 +578,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     runtimeInstalled = installed,
                     runtimeStatusLoaded = true,
                     installedDevStacks = installedStacks,
+                    ndkInstalled = ndkReady,
                     installedAgents = installedAgents,
                 )
             }
@@ -697,6 +709,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun installStack(stack: DevStack) = runStackOperation(RuntimeSetupService.ACTION_INSTALL_STACK, stack)
 
     fun removeStack(stack: DevStack) = runStackOperation(RuntimeSetupService.ACTION_REMOVE_STACK, stack)
+
+    fun installNdk() {
+        if (!_state.value.runtimeInstalled) {
+            return installCoreWith(setOf(DevStack.ANDROID), _state.value.agentKind)
+        }
+        if (!canRunRuntimeOperation()) return
+        startRuntimeOperation(SetupScope.RUNTIME) {
+            action = RuntimeSetupService.ACTION_INSTALL_NDK
+        }
+    }
+
+    fun removeNdk() {
+        if (!canRunRuntimeOperation()) return
+        startRuntimeOperation(SetupScope.RUNTIME) {
+            action = RuntimeSetupService.ACTION_REMOVE_NDK
+        }
+    }
 
     /**
      * Core is missing (onboarding skipped): run the full setup, which installs Core first and then the requested

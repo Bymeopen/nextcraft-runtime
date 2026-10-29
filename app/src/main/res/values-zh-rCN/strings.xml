@@ -260,6 +260,9 @@
     <string name="tool_ssh_stop_tunnel">停止隧道</string>
     <string name="tool_ssh_test">测试</string>
     <string name="tool_ssh_user">用户</string>
+    <string name="tool_sdk_components">SDK 组件</string>
+    <string name="tool_ndk_title">Android NDK (%1$s)</string>
+    <string name="tool_ndk_desc">ARM64 C/C++ JNI 工具链、Clang/LLVM、CMake 与 Ninja (/root/android-sdk/ndk/%1$s)</string>
     <string name="tool_stacks">语言技术栈</string>
     <string name="tool_stop">停止</string>
     <string name="tool_target_command">Shell 命令</string>

@@ -844,21 +844,24 @@ def check_file_mutation(args: dict):
     return {"decision": "allow"}
 
 
-def emit(result: dict) -> None:
-    # Legacy shape ("decision") plus the Claude Code PreToolUse shape so either harness honours the verdict.
-    result["hookSpecificOutput"] = {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": result["decision"],
-        "permissionDecisionReason": result.get("reason", ""),
-    }
+def emit(result: dict, is_agy: bool = False) -> None:
+    # Antigravity (agy) uses strict protojson parser (rejects hookSpecificOutput); Claude Code uses hookSpecificOutput.
+    if not is_agy:
+        result["hookSpecificOutput"] = {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": result["decision"],
+            "permissionDecisionReason": result.get("reason", ""),
+        }
     print(json.dumps(result))
 
 
 def main():
     mode = get_mode()
+    is_agy = False
     try:
         sys.path.insert(0, SCRIPT_DIR)
         payload = json.load(sys.stdin)
+        is_agy = "toolCall" in payload or "conversationId" in payload
         tool_call = payload.get("toolCall") or {}
         tool_name = tool_call.get("name") or payload.get("toolName") or payload.get("tool_name") or ""
         args = tool_call.get("args") or payload.get("tool_input") or {}
@@ -872,7 +875,7 @@ def main():
     except Exception as exc:
         # Release fails closed; debug never blocks on a gate error.
         result = {"decision": "allow"} if mode == "debug" else {"decision": "deny", "reason": f"Blocked: security gate could not evaluate the request ({type(exc).__name__})."}
-    emit(result)
+    emit(result, is_agy=is_agy)
 
 
 if __name__ == "__main__":
