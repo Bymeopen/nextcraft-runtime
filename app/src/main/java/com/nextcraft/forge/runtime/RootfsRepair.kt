@@ -143,7 +143,7 @@ internal object RootfsRepair {
             // /etc/resolv.conf back as a link into /run/systemd), where `cat > target` would follow the link instead.
             val exit = runRootCommand(
                 "su", "-c",
-                "mkdir -p -- ${shellSingleQuote(parent.absolutePath)} && cat -- ${shellSingleQuote(staging.absolutePath)} > $temp && " +
+                "mkdir -p -- ${shellSingleQuote(parent.absolutePath)} && rm -f -- $temp && cat -- ${shellSingleQuote(staging.absolutePath)} > $temp && " +
                     "chown $uid:$uid -- $temp && chmod ${mode.toString(8)} -- $temp && mv -f -- $temp $dest",
                 timeoutSeconds = 30L,
             )

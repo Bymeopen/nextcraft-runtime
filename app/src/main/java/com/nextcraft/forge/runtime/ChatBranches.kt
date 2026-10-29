@@ -509,7 +509,8 @@ class ChatBranches(context: Context) {
             cd "§C"
             # `add -A` marks every conflicted file as resolved. After a merge that stopped on conflicts, a file that still
             # holds conflict markers must not be committed: the markers would end up in the user's project.
-            for f in §(G diff --name-only --diff-filter=U); do
+            # Read line by line: an unquoted `for` would split a conflicted file name that contains spaces and skip the check.
+            G -c core.quotePath=false diff --name-only --diff-filter=U | while IFS= read -r f; do
               if grep -q '^<<<<<<< ' "§f" 2>/dev/null; then echo "unresolved conflict in §f" >&2; exit 3; fi
             done
             G add -A

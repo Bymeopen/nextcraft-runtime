@@ -53,6 +53,7 @@ internal suspend fun RuntimeInstaller.runGuestCommand(
                 coroutineContext.ensureActive()
                 val file = native?.outputFile
                 if (file != null && file.length() > offset) {
+                    val offsetBefore = offset
                     RandomAccessFile(file, "r").use { input ->
                         val length = input.length()
                         if (length > offset) {
@@ -71,6 +72,8 @@ internal suspend fun RuntimeInstaller.runGuestCommand(
                             }
                         }
                     }
+                    // Only a partial multi-byte character was available: wait for the rest instead of spinning.
+                    if (offset == offsetBefore && running.isAlive) delay(80)
                     val parts = pending.split('\n')
                     pending = parts.last()
                     for (raw in parts.dropLast(1)) {

@@ -8,6 +8,8 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.json.JSONObject
@@ -156,7 +158,7 @@ fun RuntimeInstaller.configureGitHubAccess(token: String, login: String, persist
     if (persistCredentials) {
         val gitCredentials = File(rootHome, ".git-credentials")
         // git/gh rewrite these as root inside the chroot; reclaim ownership instead of failing with EACCES.
-        writeRootfsFileAtomically(gitCredentials, "https://$cleanLogin:$cleanToken@github.com\n")
+        writeRootfsFileAtomically(gitCredentials, "https://$cleanLogin:$cleanToken@github.com\n", mode = 384)
         runCatching { Os.chmod(gitCredentials.absolutePath, 384) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) } // 0600
     } else {
         clearGitHubAccess()
@@ -199,6 +201,7 @@ fun RuntimeInstaller.configureGitHubAccess(token: String, login: String, persist
                 appendLine("    user: $cleanLogin")
                 appendLine("    git_protocol: https")
             },
+            mode = 384, // 0600: the token must never be visible with looser permissions
         )
         runCatching { Os.chmod(ghHosts.absolutePath, 384) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) } // 0600
     }
@@ -221,6 +224,8 @@ fun RuntimeInstaller.clearGitHubAccess() {
  */
 fun RuntimeInstaller.hasClaudeLoginCredential(): Boolean {
     val file = File(rootfs, "root/.claude/.credentials.json")
+    if (file.isFile && runCatching { file.readText().contains("\"refreshToken\"") }.getOrDefault(false)) return true
+    if (!RuntimeEngines.isRootEngine()) return false
     val quoted = shellSingleQuote(file.absolutePath)
     return runCatching {
         val process = ProcessBuilder("su", "-c", "grep -q '\"refreshToken\"' $quoted").start()
@@ -465,17 +470,21 @@ internal suspend fun RuntimeInstaller.updateDsh(
         verifyGuest(runtime.chrootExec, "/usr/local/bin/dsh --profile headless --help", "Failed to verify updated DeepSeek")
     }
     if (verified.isFailure) {
-        runCatching {
-            runGuestCommand(
-                chrootExec = runtime.chrootExec,
-                command = "set -e; rm -rf /usr/local/lib/dsh; mv /usr/local/lib/dsh.previous /usr/local/lib/dsh",
-                displayCommand = "Restore previous DeepSeek",
-                fraction = 0.95f,
-                timeoutMs = 60_000L,
-                onProgress = onProgress,
-                failureMessage = "Failed to restore previous DeepSeek",
-            )
-        }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
+        // Cancelling the update while verifying must still roll back: in a cancelled coroutine the restore command
+        // would throw at its first suspension and leave the unverified tree active.
+        withContext(NonCancellable) {
+            runCatching {
+                runGuestCommand(
+                    chrootExec = runtime.chrootExec,
+                    command = "set -e; rm -rf /usr/local/lib/dsh; mv /usr/local/lib/dsh.previous /usr/local/lib/dsh",
+                    displayCommand = "Restore previous DeepSeek",
+                    fraction = 0.95f,
+                    timeoutMs = 60_000L,
+                    onProgress = onProgress,
+                    failureMessage = "Failed to restore previous DeepSeek",
+                )
+            }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
+        }
         verified.getOrThrow()
     }
     val previous = File(rootfs, "usr/local/lib/dsh.previous")

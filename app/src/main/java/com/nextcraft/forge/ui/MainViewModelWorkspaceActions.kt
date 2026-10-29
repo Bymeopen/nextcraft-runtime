@@ -269,6 +269,8 @@ fun MainViewModel.exportWorkspaceZip(target: android.net.Uri, paths: List<String
                 val ignored = setOf(".git", ".gradle", "build", "node_modules", "__pycache__")
                 val roots = if (paths.isEmpty()) listOf(ws) else paths.map { checkpoints.safeWorkspaceFile(ws, it) }
                 var written = 0
+                // Two picked paths can overlap (a folder and a file inside it); a duplicate entry would abort the ZIP.
+                val seen = HashSet<String>()
                 getApplication<Application>().contentResolver.openOutputStream(target)?.use { os ->
                     java.util.zip.ZipOutputStream(os.buffered()).use { zip ->
                         roots.forEach { root ->
@@ -276,7 +278,9 @@ fun MainViewModel.exportWorkspaceZip(target: android.net.Uri, paths: List<String
                                 .onEnter { d -> d == root || (d.name !in ignored && !Files.isSymbolicLink(d.toPath())) }
                                 .filter { it.isFile && !Files.isSymbolicLink(it.toPath()) }
                                 .forEach { file ->
-                                    zip.putNextEntry(java.util.zip.ZipEntry(file.relativeTo(ws).invariantSeparatorsPath))
+                                    val entryName = file.relativeTo(ws).invariantSeparatorsPath
+                                    if (!seen.add(entryName)) return@forEach
+                                    zip.putNextEntry(java.util.zip.ZipEntry(entryName))
                                     file.inputStream().use { it.copyTo(zip) }
                                     zip.closeEntry()
                                     written++
@@ -435,6 +439,10 @@ fun MainViewModel.editUiElementWithAgent(node: UiInspectorNode, instruction: Str
     openConversation()
 }
 
+/** A code point as text; Int.toChar() would cut emoji (above U+FFFF) down to a wrong BMP character. */
+private fun numericEntity(codePoint: Int?): String? =
+    codePoint?.takeIf { Character.isValidCodePoint(it) }?.let { String(Character.toChars(it)) }
+
 internal fun MainViewModel.unescapeXmlAttr(raw: String): String {
     if (!raw.contains('&')) return raw
     return raw
@@ -443,10 +451,10 @@ internal fun MainViewModel.unescapeXmlAttr(raw: String): String {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace(Regex("&#(\\d+);")) { m ->
-            m.groupValues[1].toIntOrNull()?.toChar()?.toString() ?: m.value
+            numericEntity(m.groupValues[1].toIntOrNull()) ?: m.value
         }
         .replace(Regex("&#x([0-9a-fA-F]+);")) { m ->
-            m.groupValues[1].toIntOrNull(16)?.toChar()?.toString() ?: m.value
+            numericEntity(m.groupValues[1].toIntOrNull(16)) ?: m.value
         }
         .replace("&amp;", "&")
 }

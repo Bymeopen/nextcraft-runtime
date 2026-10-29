@@ -36,7 +36,10 @@ OUT_DIR="${NEXTCRAFT_OUT_DIR:-$ROOT_DIR/dist/runtime-bundles}"
 for tool in chroot tar sha256sum file; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
 done
-grep -qx 'ubuntu-24.04.5-arm64' "$CORE_ROOTFS/.pocket-rootfs-version" 2>/dev/null || {
+# build-core-on-linux.sh writes .nextcraft-rootfs-version; .pocket-rootfs-version is the name older bundles used.
+core_marker="$CORE_ROOTFS/.nextcraft-rootfs-version"
+[[ -f "$core_marker" ]] || core_marker="$CORE_ROOTFS/.pocket-rootfs-version"
+grep -qx 'ubuntu-24.04.5-arm64' "$core_marker" 2>/dev/null || {
   echo "$CORE_ROOTFS is not an extracted Core 24.04.5 rootfs" >&2; exit 1; }
 [[ -z "$EXTRA_CA_FILE" || -f "$EXTRA_CA_FILE" ]] || { echo "NEXTCRAFT_EXTRA_CA_FILE not found: $EXTRA_CA_FILE" >&2; exit 1; }
 

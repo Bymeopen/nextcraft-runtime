@@ -326,7 +326,7 @@ for tool in "${NATIVE_TOOLS[@]}"; do
 done
 [[ "$(file -b "$payload/opt/$JDK_DIR/bin/java")" == *"ARM aarch64"* ]] || { echo "JDK is not aarch64" >&2; exit 1; }
 [[ "$(ls -A "$payload" | sort | tr '\n' ' ')" == "opt root usr " ]] || { echo "Unexpected top-level entries: $(ls -A "$payload")" >&2; exit 1; }
-! find "$payload" -name 'qemu-*' -o -name '*.pem' -o -name '.netrc' -o -name 'gradle.properties' -path '*/caches/*' | grep -q . || { echo "Build host files leaked into the payload" >&2; exit 1; }
+! find "$payload" -name 'qemu-*' -o -name '*.pem' -o -name '.netrc' -o -name 'gradle.properties' -path '*/caches/*' | grep . >/dev/null || { echo "Build host files leaked into the payload" >&2; exit 1; }
 [[ ! -e "$payload/root/android-sdk/platform-tools" ]]
 
 if [[ -n "$CORE_ROOTFS" ]]; then

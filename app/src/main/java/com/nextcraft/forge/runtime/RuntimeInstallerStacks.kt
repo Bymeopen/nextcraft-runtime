@@ -59,7 +59,7 @@ suspend fun RuntimeInstaller.removeStack(
         }
     }
 
-    writeDevStackState(readDevStackState().apply { put(stack.name, false) })
+    updateDevStackState { put(stack.name, false) }
     onProgress(RuntimeInstallProgress("Removed ${stack.label}", 1f))
 }
 
@@ -198,7 +198,7 @@ internal suspend fun RuntimeInstaller.applyStack(
             verifyGuest(chrootExec, "php --version && composer --version", "Failed to verify PHP and Composer")
         }
     }
-    writeDevStackState(readDevStackState().apply { put(stack.name, true) })
+    updateDevStackState { put(stack.name, true) }
     onProgress(RuntimeInstallProgress("Installed ${stack.label}", to))
 }
 
@@ -418,7 +418,10 @@ internal fun RuntimeInstaller.patchGradleLauncherStdin(gradleLauncher: File) {
 internal fun RuntimeInstaller.writeAndroidGradleInitScript(runtimeRootfs: File) {
     val script = File(runtimeRootfs, AndroidToolchain.GRADLE_INIT_SCRIPT_GUEST_PATH.removePrefix("/"))
     script.parentFile?.mkdirs()
-    script.writeText(RuntimeInstaller.ANDROID_GRADLE_INIT_SCRIPT)
+    // Runs on every launch: skip the write when current, and never truncate it under a Gradle that is starting.
+    if (script.readTextOrNull() != RuntimeInstaller.ANDROID_GRADLE_INIT_SCRIPT.trim()) {
+        writeRootfsFileAtomically(script, RuntimeInstaller.ANDROID_GRADLE_INIT_SCRIPT, mode = 0b110100100)
+    }
     File(runtimeRootfs, RuntimeMarkers.LEGACY_GRADLE_INIT_SCRIPT).delete()
     patchGradleLauncherStdin(File(runtimeRootfs, AndroidToolchain.GRADLE_LAUNCHER_HOST_PATH))
 }
@@ -487,9 +490,9 @@ fun RuntimeInstaller.migrateLegacyToolMarkers() {
     if (!File(rootfs, "usr/bin/bash").isFile) return
     if (languageToolsMarker.readTextOrNull() != RuntimeInstaller.LANGUAGE_TOOLS_VERSION) return
     if (coreToolsMarker.readTextOrNull() != RuntimeInstaller.CORE_TOOLS_VERSION) coreToolsMarker.writeMarker(RuntimeInstaller.CORE_TOOLS_VERSION)
-    val state = readDevStackState()
-    DevStack.entries.forEach { stack -> if (!state.containsKey(stack.name)) state[stack.name] = true }
-    writeDevStackState(state)
+    updateDevStackState {
+        DevStack.entries.forEach { stack -> if (!containsKey(stack.name)) put(stack.name, true) }
+    }
 }
 
 fun RuntimeInstaller.installedStacks(): Set<DevStack> = readDevStackState()
@@ -529,6 +532,12 @@ internal fun RuntimeInstaller.readDevStackState(): MutableMap<String, Boolean> {
             }
         }
     }.getOrDefault(mutableMapOf())
+}
+
+/** Read-modify-write of the stack state under one process-wide lock, so concurrent installs/removals cannot lose an update. */
+@Synchronized
+internal fun RuntimeInstaller.updateDevStackState(change: MutableMap<String, Boolean>.() -> Unit) {
+    writeDevStackState(readDevStackState().apply(change))
 }
 
 internal fun RuntimeInstaller.writeDevStackState(state: Map<String, Boolean>) {

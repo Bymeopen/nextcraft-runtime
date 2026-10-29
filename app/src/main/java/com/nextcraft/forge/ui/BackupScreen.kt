@@ -265,9 +265,10 @@ fun BackupScreen(state: ForgeUiState, viewModel: MainViewModel) {
         }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    if (pendingRestore != null) {
-        androidx.compose.runtime.LaunchedEffect(pendingRestore) {
-            restoreEncrypted = viewModel.backup.isEncrypted(pendingRestore!!)
+    val currentPendingRestore = pendingRestore
+    if (currentPendingRestore != null) {
+        androidx.compose.runtime.LaunchedEffect(currentPendingRestore) {
+            restoreEncrypted = viewModel.backup.isEncrypted(currentPendingRestore)
         }
     }
 

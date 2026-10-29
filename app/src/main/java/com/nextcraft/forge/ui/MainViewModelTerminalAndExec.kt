@@ -471,6 +471,7 @@ internal fun MainViewModel.runCommandInChrootOrHost(
     workspaceDir: File,
     command: String,
     onOutputChunk: ((String) -> Unit)? = null,
+    timeoutSeconds: Long = 60,
 ): String {
     return runCatching {
         val process = if (installer.isInstalled() && installer.isRuntimeAccessAvailable()) {
@@ -489,7 +490,7 @@ internal fun MainViewModel.runCommandInChrootOrHost(
         val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
         val watchdog = Thread({
             try {
-                if (!process.waitFor(60, TimeUnit.SECONDS)) {
+                if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                     timedOut.set(true)
                     stopChrootProcess(process)
                 }
@@ -518,7 +519,7 @@ internal fun MainViewModel.runCommandInChrootOrHost(
             if (activeTerminalProcess === process) activeTerminalProcess = null
         }
         if (timedOut.get()) {
-            val timeoutNotice = "\n[Command timed out after 60s]"
+            val timeoutNotice = "\n[Command timed out after ${timeoutSeconds}s]"
             buffer.append(timeoutNotice)
             onOutputChunk?.invoke(timeoutNotice)
         }
@@ -527,9 +528,9 @@ internal fun MainViewModel.runCommandInChrootOrHost(
 }
 
 /** Runs [command] like the terminal, but throws when it exits non-zero (the plain runner only returns output). */
-internal fun MainViewModel.runCheckedCommand(projectSlug: String, workspaceDir: File, command: String): String {
+internal fun MainViewModel.runCheckedCommand(projectSlug: String, workspaceDir: File, command: String, timeoutSeconds: Long = 60): String {
     val wrapped = "{ $command\n} 2>&1; printf '\\n[forge-exit:%s]\\n' \"\$?\""
-    val raw = runCommandInChrootOrHost(projectSlug, workspaceDir, wrapped)
+    val raw = runCommandInChrootOrHost(projectSlug, workspaceDir, wrapped, timeoutSeconds = timeoutSeconds)
     val code = Regex("""\[forge-exit:(\d+)]\s*$""").find(raw)?.groupValues?.get(1)?.toIntOrNull()
     val output = raw.substringBeforeLast("[forge-exit:").trim()
     check(code == 0) {

@@ -551,6 +551,8 @@ class ClaudeRuntimeBridge(
             val decision = if (autoApproveAllTools()) "allow" else "deny"
             runCatching { responseFile(file, approvalId).writeText(decision) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
             runCatching { file.delete() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
+            // The emit above is a suspension point: cancelling the watcher must end it, not be taken for a parse failure.
+            if (it is kotlinx.coroutines.CancellationException) throw it
         }
     }
 

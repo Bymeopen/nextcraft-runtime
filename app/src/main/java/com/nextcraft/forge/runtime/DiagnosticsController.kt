@@ -73,6 +73,8 @@ class DiagnosticsController(
                     onChunk = { chunk -> mutable.update { it.copy(healthOutput = (it.healthOutput + chunk).takeLast(MAX_LOG_CHARS)) } },
                 )
             }
+            // A cancelled check must not touch the state: a newer check may already be running and owns healthRunning.
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
             mutable.update { current ->
                 result.fold(
                     onSuccess = { current.copy(healthRunning = false, healthSummary = current.healthOutput.lineSequence().lastOrNull { it.startsWith("Selesai") }) },

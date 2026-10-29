@@ -282,6 +282,9 @@ internal fun MainViewModel.notifyGitWaitingInQueue() {
 
 private const val GIT_WAIT_NOTICE_COOLDOWN_MS = 30_000L
 
+/** Clone/push/pull of a real repository routinely exceeds the terminal runner's 60 s default. */
+private const val GIT_NETWORK_TIMEOUT_S = 600L
+
 @Volatile
 private var lastGitWaitNoticeAt = 0L
 
@@ -519,7 +522,7 @@ fun MainViewModel.createGitHubRepository(
                     }
                     pushError = runCatching {
                         withGitHubCredentials(token, login) {
-                            runCheckedCommand(project.slug, ws, pushCmd)
+                            runCheckedCommand(project.slug, ws, pushCmd, GIT_NETWORK_TIMEOUT_S)
                         }
                     }.exceptionOrNull()
                 }
@@ -589,11 +592,8 @@ fun MainViewModel.syncProjectWithGitHub(
                     append("else echo 'No origin remote configured in workspace' >&2; false; fi")
                 }
                 withGitHubCredentials(token, login) {
-                    if (reportStatus) {
-                        runCheckedCommand(project.slug, ws, syncCmd)
-                    } else {
-                        runCommandInChrootOrHost(project.slug, ws, syncCmd)
-                    }
+                    // Checked even when silent: an unchecked failed push would still count as synced and accept the checkpoints.
+                    runCheckedCommand(project.slug, ws, syncCmd, GIT_NETWORK_TIMEOUT_S)
                 }
             }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("MainViewModel", it) }
         }
@@ -643,7 +643,7 @@ fun MainViewModel.pullProjectFromGitHub(projectId: String = _state.value.activeP
                     append("else echo 'No origin remote configured in workspace'; fi")
                 }
                 withGitHubCredentials(token, login) {
-                    runCheckedCommand(project.slug, ws, pullCmd)
+                    runCheckedCommand(project.slug, ws, pullCmd, GIT_NETWORK_TIMEOUT_S)
                 }
             }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("MainViewModel", it) }
         }
@@ -693,10 +693,10 @@ fun MainViewModel.cloneGitHubRepository(repo: GitHubRepository) {
                 try {
                     if (token.isNotBlank()) {
                         withGitHubCredentials(token, login) {
-                            runCheckedCommand(project.slug, ws, cloneCmd)
+                            runCheckedCommand(project.slug, ws, cloneCmd, GIT_NETWORK_TIMEOUT_S)
                         }
                     } else {
-                        runCheckedCommand(project.slug, ws, cloneCmd)
+                        runCheckedCommand(project.slug, ws, cloneCmd, GIT_NETWORK_TIMEOUT_S)
                     }
                 } catch (error: Throwable) {
                     // The project is never saved on failure; don't leave its workspace behind on disk.

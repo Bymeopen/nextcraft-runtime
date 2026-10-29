@@ -148,7 +148,15 @@ class BuildMatrixController(
         mutable.update { it.copy(running = true, log = "▶ $command\n") }
         job = scope.launch {
             try {
-                val workspace = withContext(Dispatchers.IO) { workspaceFor(project.id) }
+                // workspaceFor throws for an unsafe project root; uncaught here it would crash the app from this scope.
+                val workspace = try {
+                    withContext(Dispatchers.IO) { workspaceFor(project.id) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    mutable.update { it.copy(log = appendLog(it.log, "✕ ${error.message ?: "workspace unavailable"}\n")) }
+                    return@launch
+                }
                 val result = runCatching {
                     runner.run(workspace, project.slug, command, timeoutMillis = 30 * 60_000L) { chunk ->
                         mutable.update { it.copy(log = appendLog(it.log, chunk)) }
@@ -231,8 +239,21 @@ class BuildMatrixController(
         job = scope.launch {
             var allOk = true
             try {
-                val workspace = withContext(Dispatchers.IO) { workspaceFor(project.id) }
-                for (step in withContext(Dispatchers.IO) { withGradleBatched(workspace, selected) }) {
+                // workspaceFor / project scanning can throw; uncaught here it would crash the app from this scope.
+                val prepared = try {
+                    withContext(Dispatchers.IO) {
+                        val dir = workspaceFor(project.id)
+                        dir to withGradleBatched(dir, selected)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    allOk = false
+                    mutable.update { it.copy(log = appendLog(it.log, "✕ ${error.message ?: "workspace unavailable"}\n")) }
+                    return@launch
+                }
+                val workspace = prepared.first
+                for (step in prepared.second) {
                     val target = step.target
                     mutable.update { s -> s.copy(statuses = s.statuses + step.ids.associateWith { TargetStatus.RUNNING }, log = appendLog(s.log, "\n▶ ${target.name}\n")) }
                     val result = runCatching {

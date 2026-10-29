@@ -98,7 +98,7 @@ unzip -q "$kotlinc_zip" -d "$work/tools"
 export JAVA_HOME="$work/tools/$JDK_DIR"
 export PATH="$JAVA_HOME/bin:$work/tools/gradle-$GRADLE_VERSION/bin:$work/tools/kotlinc/bin:$PATH"
 export ANDROID_HOME="$work/sdk" ANDROID_SDK_ROOT="$work/sdk" GRADLE_USER_HOME="$work/gradle-home"
-java -version 2>&1 | grep -q '"21\.' || { echo "Expected JDK 21" >&2; exit 1; }
+java -version 2>&1 | grep '"21\.' >/dev/null || { echo "Expected JDK 21" >&2; exit 1; }
 
 echo "Installing SDK packages: ${SDK_PACKAGES[*]}"
 sdkmanager="$work/tools/cmdline-tools/bin/sdkmanager"

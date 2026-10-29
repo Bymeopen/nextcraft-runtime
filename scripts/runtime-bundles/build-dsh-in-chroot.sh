@@ -90,7 +90,6 @@ mkdir -p "$payload/usr/local/lib" "$payload/usr/local/bin"
 cp -a "$rootfs/usr/local/lib/dsh" "$payload/usr/local/lib/"
 cp -a "$rootfs/usr/local/bin/dsh" "$payload/usr/local/bin/"
 printf '%s\n' "$DSH_VERSION" > "$payload/.nextcraft-dsh-version"
-printf '%s\n' "$DSH_VERSION" > "$payload/.nextcraft-dsh-version"
 [[ -L "$payload/usr/local/bin/dsh" ]]
 [[ -e "$payload/usr/local/lib/dsh/node_modules/.bin/dsh" ]]
 # npm's cache and logs live under /root, outside the payload; make sure nothing from the build host leaked in.

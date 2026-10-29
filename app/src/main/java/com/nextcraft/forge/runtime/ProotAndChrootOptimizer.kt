@@ -338,9 +338,11 @@ object ProotAndChrootOptimizer {
             KRELEASE_ARG="-k ${'$'}{NEXTCRAFT_KERNEL_RELEASE:-5.15.0-nextcraft-arm64}"
         fi
 
+        # Skip this wrapper itself (installed as /usr/local/bin/proot when no real proot exists): exec'ing it would loop forever.
+        # marker: NEXTCRAFT_PROOT_FAST_WRAPPER
         REAL_PROOT=""
         for candidate in /usr/bin/proot /usr/local/bin/proot /bin/proot; do
-            if [ -x "${'$'}candidate" ]; then
+            if [ -x "${'$'}candidate" ] && ! grep -q NEXTCRAFT_PROOT_FAST_WRAPPER "${'$'}candidate" 2>/dev/null; then
                 REAL_PROOT="${'$'}candidate"
                 break
             fi
