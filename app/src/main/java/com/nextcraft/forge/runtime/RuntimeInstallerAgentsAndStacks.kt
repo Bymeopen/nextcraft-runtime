@@ -338,19 +338,38 @@ internal suspend fun RuntimeInstaller.updateClaude(
     }
     val latest = JSONObject(fetchText("https://registry.npmjs.org/@anthropic-ai/claude-code/latest")).getString("version")
     check(latest == expectedVersion) { "A newer Claude Code release is available. Refresh updates and try again." }
-    val base = "https://downloads.claude.ai/claude-code-releases/$latest"
+    installClaudeRelease(runtime, latest, onProgress)
+}
+
+/** Newest Claude Code release per npm; falls back to the last version this build was tested with when npm is unreachable. */
+internal fun RuntimeInstaller.latestClaudeVersion(): String =
+    runCatching { JSONObject(fetchText("https://registry.npmjs.org/@anthropic-ai/claude-code/latest")).getString("version") }
+        .getOrDefault(RuntimeInstaller.CLAUDE_FALLBACK_VERSION)
+
+/**
+ * Downloads the official Claude Code binary straight from the vendor (nothing is re-hosted by this project), checks it
+ * against the vendor manifest's SHA-256, and swaps it in with rollback. Used for both first installs and updates.
+ */
+internal suspend fun RuntimeInstaller.installClaudeRelease(
+    runtime: InstalledRuntime,
+    version: String,
+    onProgress: suspend (RuntimeInstallProgress) -> Unit,
+    progress: ClosedFloatingPointRange<Float> = 0f..0.9f,
+) {
+    check(RuntimeInstaller.CLAUDE_VERSION_PATTERN.matches(version)) { "Invalid Claude Code version" }
+    val base = "https://downloads.claude.ai/claude-code-releases/$version"
     val manifest = JSONObject(fetchText("$base/manifest.json"))
     val checksum = manifest.getJSONObject("platforms").getJSONObject("linux-arm64").getString("checksum")
-    val downloaded = File(downloads, "claude-$latest")
-    val claudeDownloadLabel = "Downloading Claude Code $latest…"
+    val downloaded = File(downloads, "claude-$version")
+    val claudeDownloadLabel = "Downloading Claude Code $version…"
     downloadVerified("$base/linux-arm64/claude", downloaded, checksum) { bytes, total ->
         val ratio = if (total > 0L) bytes.toFloat() / total else 0f
-        onProgress(RuntimeInstallProgress(claudeDownloadLabel, ratio * 0.9f, bytes, total.takeIf { it > 0L }, event = RuntimeInstallEvent.DOWNLOAD))
+        onProgress(RuntimeInstallProgress(claudeDownloadLabel, progress.start + ratio * (progress.endInclusive - progress.start), bytes, total.takeIf { it > 0L }, event = RuntimeInstallEvent.DOWNLOAD))
     }
     val claude = File(rootfs, RuntimeInstaller.CLAUDE_GUEST_PATH.removePrefix("/"))
     claude.parentFile?.mkdirs()
     claude.parentFile?.let { if (!it.canWrite()) RootfsRepair.reclaimOwnership(it, AndroidProcess.myUid(), recursive = false) }
-    val staged = File(claude.parentFile, ".claude-$latest.installing")
+    val staged = File(claude.parentFile, ".claude-$version.installing")
     try {
         replaceBinaryWithRollback(
             target = claude,
@@ -369,7 +388,7 @@ internal suspend fun RuntimeInstaller.updateClaude(
     } finally {
         downloaded.delete()
     }
-    claudeMarker.writeMarker(latest)
+    claudeMarker.writeMarker(version)
 }
 
 internal suspend fun RuntimeInstaller.updateAgy(
@@ -378,13 +397,36 @@ internal suspend fun RuntimeInstaller.updateAgy(
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
 ) {
     val manifest = fetchAgyManifest()
+    check(manifest.getString("version") == expectedVersion) { "A newer Antigravity CLI release is available. Refresh updates and try again." }
+    installAgyRelease(runtime, manifest, onProgress)
+}
+
+/** Vendor manifest for the newest Antigravity CLI; the pinned release below is used when the manifest is unreachable. */
+internal fun RuntimeInstaller.agyManifestOrFallback(): JSONObject =
+    runCatching { fetchAgyManifest() }.getOrElse {
+        JSONObject()
+            .put("version", RuntimeInstaller.AGY_VERSION)
+            .put("url", RuntimeInstaller.AGY_FALLBACK_URL)
+            .put("sha512", RuntimeInstaller.AGY_FALLBACK_SHA512)
+    }
+
+/**
+ * Downloads the official Antigravity CLI archive straight from the vendor (nothing is re-hosted by this project),
+ * checks its SHA-512 against the manifest, and swaps the binary in with rollback. First installs and updates share it.
+ * Guest-side configuration (GEMINI.md, skills, onboarding state) is provisioned separately by AntigravityCustomizations.
+ */
+internal suspend fun RuntimeInstaller.installAgyRelease(
+    runtime: InstalledRuntime,
+    manifest: JSONObject,
+    onProgress: suspend (RuntimeInstallProgress) -> Unit,
+    progress: ClosedFloatingPointRange<Float> = 0f..0.9f,
+) {
     val latest = manifest.getString("version")
-    check(latest == expectedVersion) { "A newer Antigravity CLI release is available. Refresh updates and try again." }
     val downloaded = File(downloads, "antigravity-$latest-linux-arm64.tar.gz")
     val agyDownloadLabel = "Downloading Antigravity CLI $latest…"
     downloadVerified(manifest.getString("url"), downloaded, manifest.getString("sha512"), algorithm = "SHA-512") { bytes, total ->
         val ratio = if (total > 0L) bytes.toFloat() / total else 0f
-        onProgress(RuntimeInstallProgress(agyDownloadLabel, ratio * 0.9f, bytes, total.takeIf { it > 0L }, event = RuntimeInstallEvent.DOWNLOAD))
+        onProgress(RuntimeInstallProgress(agyDownloadLabel, progress.start + ratio * (progress.endInclusive - progress.start), bytes, total.takeIf { it > 0L }, event = RuntimeInstallEvent.DOWNLOAD))
     }
     val destination = File(rootfs, RuntimeInstaller.AGY_GUEST_PATH.removePrefix("/"))
     destination.parentFile?.mkdirs()
@@ -542,19 +584,11 @@ internal suspend fun RuntimeInstaller.ensureClaudeInstalled(
         installClaudeViaNpm(chrootExec, fraction, onProgress)
         return
     }
-    installRuntimeOverlay(
-        bundle = RuntimeInstaller.CLAUDE_BUNDLE,
-        message = "Installing Claude Code ${RuntimeInstaller.CLAUDE_BUNDLED_VERSION}…",
-        from = fraction,
-        to = 0.995f,
-        onProgress = onProgress,
-    )
-    verifyGuest(chrootExec, "${RuntimeInstaller.CLAUDE_GUEST_PATH} --version", "Failed to verify Claude Code")
+    val version = latestClaudeVersion()
+    onProgress(RuntimeInstallProgress("Installing Claude Code $version…", fraction))
+    installClaudeRelease(InstalledRuntime(chrootExec, rootfs), version, onProgress, fraction..0.995f)
     migrateLegacyClaudeMarker()
-    require(claudeMarker.readTextOrNull() == RuntimeInstaller.CLAUDE_BUNDLED_VERSION) {
-        "The Claude Code runtime bundle is incomplete"
-    }
-    upgradeAfterBundledInstall(AgentKind.CLAUDE_CODE, onProgress)
+    require(claudeMarker.readTextOrNull() == version) { "Claude Code installation is incomplete" }
 }
 
 /**
@@ -591,42 +625,11 @@ internal suspend fun RuntimeInstaller.ensureAgyInstalled(
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
 ) {
     if (isAgentInstalled(AgentKind.ANTIGRAVITY)) return
-    installRuntimeOverlay(
-        bundle = RuntimeInstaller.AGY_BUNDLE,
-        message = "Installing Antigravity CLI ${RuntimeInstaller.AGY_VERSION}…",
-        from = fraction,
-        to = 0.995f,
-        onProgress = onProgress,
-        forceEmbedded = isAssetAvailable("runtime/${RuntimeInstaller.AGY_BUNDLE.fileName}"),
-    )
-    verifyGuest(chrootExec, "${RuntimeInstaller.AGY_GUEST_PATH} --version", "Failed to verify Antigravity CLI")
-    agyMarker.writeMarker(RuntimeInstaller.AGY_VERSION)
+    val manifest = agyManifestOrFallback()
+    onProgress(RuntimeInstallProgress("Installing Antigravity CLI ${manifest.getString("version")}…", fraction))
+    installAgyRelease(InstalledRuntime(chrootExec, rootfs), manifest, onProgress, fraction..0.995f)
     require(isAgentInstalled(AgentKind.ANTIGRAVITY)) {
         "Antigravity CLI installation is incomplete"
-    }
-    upgradeAfterBundledInstall(AgentKind.ANTIGRAVITY, onProgress)
-}
-
-/**
- * The APK bundles a fixed agent version, which can be older than what the user already ran: after a rootfs
- * rebuild or a reinstall of the app, installing the bundle would silently downgrade the agent. Move it straight
- * to the newest release instead. Best effort: offline or a failed download keeps the bundled version.
- */
-internal suspend fun RuntimeInstaller.upgradeAfterBundledInstall(
-    agent: AgentKind,
-    onProgress: suspend (RuntimeInstallProgress) -> Unit,
-) {
-    runCatching {
-        val update = checkAgentUpdates()[agent] ?: return
-        val runtime = installedRuntime()
-        when (agent) {
-            AgentKind.CLAUDE_CODE -> updateClaude(runtime, update.latestVersion, onProgress)
-            AgentKind.ANTIGRAVITY -> updateAgy(runtime, update.latestVersion, onProgress)
-            AgentKind.DEEPSEEK_HARNESS -> Unit
-        }
-    }.onFailure { error ->
-        if (error is CancellationException) throw error
-        Log.w("RuntimeInstaller", "Kept the bundled ${agent.title}; updating to the latest release failed", error)
     }
 }
 

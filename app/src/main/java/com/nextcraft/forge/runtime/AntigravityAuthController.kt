@@ -2,6 +2,7 @@ package com.nextcraft.forge.runtime
 
 import android.content.Context
 import android.os.SystemClock
+import com.nextcraft.forge.BuildConfig
 import com.nextcraft.forge.R
 import com.nextcraft.forge.model.AgentKind
 import com.nextcraft.forge.ui.UiText
@@ -38,6 +39,12 @@ class AntigravityAuthController(
     val state: StateFlow<AntigravityAuthState> = authStateFlow.asStateFlow()
 
     private val ptyTranscriptFile = File(context.cacheDir, "antigravity-auth-output.log")
+
+    /** Debug builds only: what the login loop sees (state counters plus the last screen text), for diagnosing a stuck sign-in. */
+    private val debugSnapshotFile = File(context.cacheDir, "antigravity-auth-debug.txt")
+
+    /** Where /opt/nextcraft/open-url.sh records the link agy hands to its BROWSER helper (shared with the Claude login). */
+    private val browserUrlFile = File(RuntimeInstaller.bridgeRootDir(context), "claude-login-url")
     private val signoutScratchFile = File(context.cacheDir, "antigravity-logout-output.log")
 
     @Volatile private var activePtyProc: Process? = null
@@ -97,6 +104,7 @@ class AntigravityAuthController(
         )
         verificationCodeSent = false
         ptyTranscriptFile.delete()
+        browserUrlFile.delete() // never offer a link left over from an earlier login
 
         val ptyProc = try {
             val env = rtInstaller.installedRuntime()
@@ -123,8 +131,14 @@ class AntigravityAuthController(
                 runCatching { proc.destroyForcibly() }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
                 throw UiTextException(UiText.res(R.string.rt_auth_unsupported_process))
             }
+            if (!proc.isNativeSpawn) {
+                // The ProcessBuilder fallback has no pty, so agy's sign-in screen can never start: say so instead of spinning forever.
+                runCatching { proc.destroyForcibly() }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
+                throw UiTextException(UiText.res(R.string.rt_auth_native_spawn_missing))
+            }
             proc
         } catch (err: Throwable) {
+            if (BuildConfig.DEBUG) writeDebugSnapshot("spawn failed ${err::class.java.simpleName}: ${err.message}", null)
             authStateFlow.value = AntigravityAuthState(
                 status = AntigravityAuthStatus.ERROR,
                 message = err.toUiText(R.string.rt_auth_agy_start_failed),
@@ -143,6 +157,7 @@ class AntigravityAuthController(
         var acceptedPrivacy = false
         var trustedFolder = false
         val timeoutAtMs = SystemClock.elapsedRealtime() + OAUTH_FLOW_TIMEOUT_MS
+        var idleTicks = 0
 
         fun writePtyInput(payload: String) {
             ptyProc.outputStream.write(payload.encodeToByteArray())
@@ -157,6 +172,11 @@ class AntigravityAuthController(
                     }
                     val unreadBytes = ptyProc.outputFile.length() - readCursor
                     if (unreadBytes <= 0L) {
+                        // The BROWSER helper writes the link after the last screen update, so it must also be polled while idle.
+                        publishBrowserHelperUrl()
+                        if (BuildConfig.DEBUG && ++idleTicks % 25 == 0) {
+                            writeDebugSnapshot("idle alive=${ptyProc.isAlive} outLen=${ptyProc.outputFile.length()} read=$readCursor handshakes=$sentHandshakes picker=$advancedLoginPicker status=${authStateFlow.value.status}", null)
+                        }
                         delay(80L)
                         continue
                     }
@@ -176,6 +196,9 @@ class AntigravityAuthController(
                     }
 
                     val strippedText = stripAnsiSequences(rawBuffer.toString()).takeLast(40_000)
+                    if (BuildConfig.DEBUG) {
+                        writeDebugSnapshot("chunk alive=${ptyProc.isAlive} outLen=${ptyProc.outputFile.length()} read=$readCursor handshakes=$sentHandshakes picker=$advancedLoginPicker status=${authStateFlow.value.status} url=${authStateFlow.value.authorizationUrl != null}", strippedText.takeLast(3_000))
+                    }
 
                     if (sentHandshakes < 5 &&
                         rawBuffer.length - lastHandshakePos > 200 &&
@@ -201,7 +224,8 @@ class AntigravityAuthController(
                         }
                     }
 
-                    val detectedAuthUrl = extractGoogleOAuthUrl(strippedText)
+                    // Newer agy releases pass the link to the BROWSER helper instead of printing it in a form the screen scraper finds.
+                    val detectedAuthUrl = extractGoogleOAuthUrl(strippedText) ?: readBrowserHelperUrl()
                     if (detectedAuthUrl != null && authStateFlow.value.authorizationUrl == null) {
                         authStateFlow.value = AntigravityAuthState(
                             status = AntigravityAuthStatus.AWAITING_CODE,
@@ -294,6 +318,7 @@ class AntigravityAuthController(
             }
             throw ce
         } catch (err: Throwable) {
+            if (BuildConfig.DEBUG) writeDebugSnapshot("error ${err::class.java.simpleName}: ${err.message}", null)
             if (authStateFlow.value.status != AntigravityAuthStatus.SIGNED_IN) {
                 authStateFlow.value = AntigravityAuthState(
                     status = AntigravityAuthStatus.ERROR,
@@ -312,6 +337,31 @@ class AntigravityAuthController(
             verificationCodeSent = false
         }
     }
+
+    private fun writeDebugSnapshot(header: String, screen: String?) {
+        runCatching { debugSnapshotFile.writeText("$header\n${screen.orEmpty()}") }.onFailure { ErrorLog.swallowed(LOG_TAG, it) }
+    }
+
+    /** Offers the link the BROWSER helper recorded, once, while the login is still starting or waiting for the code. */
+    private fun publishBrowserHelperUrl(): String? {
+        val current = authStateFlow.value
+        if (current.authorizationUrl != null) return current.authorizationUrl
+        if (current.status != AntigravityAuthStatus.STARTING) return null
+        val url = readBrowserHelperUrl() ?: return null
+        authStateFlow.value = AntigravityAuthState(
+            status = AntigravityAuthStatus.AWAITING_CODE,
+            authorizationUrl = url,
+            message = UiText.res(R.string.rt_auth_agy_open_link),
+        )
+        return url
+    }
+
+    /** For the "open browser" button: the link of the running login, re-read on demand when the poll has not seen it yet. */
+    fun currentAuthorizationUrl(): String? = authStateFlow.value.authorizationUrl ?: publishBrowserHelperUrl()
+
+    private fun readBrowserHelperUrl(): String? = runCatching {
+        browserUrlFile.takeIf(File::isFile)?.readText()?.trim()?.takeIf { it.length < 4_096 && isGoogleSignInUrl(it) }
+    }.getOrNull()
 
     @Synchronized
     fun submitCode(code: String) {
@@ -457,7 +507,7 @@ private fun findAccountEmail(terminalText: String): String? =
         .map { it.value }
         .firstOrNull { !it.endsWith(".apps.googleusercontent.com", ignoreCase = true) }
 
-private fun stripAnsiSequences(raw: String): String {
+internal fun stripAnsiSequences(raw: String): String {
     val withoutCodes = raw.replace(ANSI_CSI_OSC_PATTERN, "")
     val sb = StringBuilder(withoutCodes.length)
     for (ch in withoutCodes) {
@@ -466,4 +516,11 @@ private fun stripAnsiSequences(raw: String): String {
         }
     }
     return sb.toString()
+}
+
+/** The browser helper's file is writable from the chroot, so only accept Google's own OAuth endpoint. */
+internal fun isGoogleSignInUrl(url: String): Boolean {
+    val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+    return uri.scheme == "https" && uri.host.equals("accounts.google.com", ignoreCase = true) &&
+        "client_id=" in url && "code_challenge=" in url
 }

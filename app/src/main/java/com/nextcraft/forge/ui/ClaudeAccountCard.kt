@@ -123,11 +123,12 @@ fun ClaudeAccountCard(viewModel: MainViewModel, extra: @Composable ColumnScope.(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                 ) { Text(stringResource(R.string.settings_claude_sign_in_sso)) }
 
+                AutoOpenSignInLink(auth.authorizationUrl)
                 auth.authorizationUrl?.let { url ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ForgePrimaryButton(
                             text = stringResource(R.string.settings_claude_open_page),
-                            onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) } },
+                            onClick = { openUrlOrCopy(context, url) { clipboard.setText(AnnotatedString(it)) } },
                             modifier = Modifier.weight(1f),
                         )
                         OutlinedButton(
