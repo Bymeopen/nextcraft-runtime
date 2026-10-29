@@ -51,7 +51,7 @@ if [ -n "${NDK_SHA256:-}" ] && [ "$NDK_SHA256" != "$digest" ]; then
 fi
 
 mkdir "$work/x"
-tar -xJf "$work/ndk.tar.xz" -C "$work/x"
+tar --no-same-owner -xJf "$work/ndk.tar.xz" -C "$work/x"
 src="$(find "$work/x" -maxdepth 2 -name source.properties -printf '%h\n' | head -1)"
 [ -n "$src" ] || { echo "source.properties not found in archive" >&2; exit 1; }
 
@@ -62,4 +62,8 @@ mkdir -p "$NDK_DIR"
 rm -rf "${NDK_DIR:?}/$rev"
 mv "$src" "$NDK_DIR/$rev"
 ensure_cmake_bridge
+sdk_uid_gid="$(stat -c '%u:%g' "$SDK_ROOT" 2>/dev/null || echo '0:0')"
+chown -R "$sdk_uid_gid" "$NDK_DIR" "$SDK_ROOT/cmake" 2>/dev/null || true
+chmod -R a+rX "$NDK_DIR" "$SDK_ROOT/cmake" 2>/dev/null || true
+printf '%s\n' "$rev" > /.nextcraft-ndk-installed 2>/dev/null || true
 echo "Installed NDK $rev -> $NDK_DIR/$rev"
