@@ -97,3 +97,13 @@ The APK contains only the app, `libproot*.so`, and scripts. The first-run instal
 | `nextcraft-dsh-arm64` | DeepSeek harness `dsh` `0.2.1-rc.2` | npm package `@deepseek-ai/dsh` (repo `deepseek-ai/deepseek-harness`) declares `MIT` for the top-level package; its npm dependencies are resolved at build time and their licenses are **not itemised**. |
 
 Additional tools installed by the user inside the guest through `apt`/`pip`/`npm` (for example `qemu-user`, `frida`, `unicorn`, `openssh-client`, `gh` v2.100.0) are fetched from their official sources and are not redistributed by this project.
+
+---
+
+## 8. Distribution Compliance (GitHub Releases only)
+- **Channel:** APK and runtime bundles are distributed only through GitHub Releases of `bymeopen/nextcraft-forge`; the app is not published on Google Play. GPL obligations apply to GitHub distribution just as to any other channel.
+- **Source offer (GPL-3.0 / GPL-2.0+ / LGPL-3.0+):** The complete corresponding source of NextCraft Forge is the repository at the release tag. Source for PRoot v5.5.0 and talloc 2.4.3 is the pinned upstream tag/tarball in `scripts/runtime-bundles/build-proot-static.sh`. Source for the Ubuntu packages inside the Core/Python bundles is available from `archive.ubuntu.com` (Ubuntu 24.04 `noble`). Each release must attach or link `LICENSE` and this file.
+- **Termux terminal libraries (GPL-3.0):** linked into the APK; the APK is therefore GPL-3.0-only and must be accompanied by this notice and the source (see Section 2).
+- **Trademarks:** Claude, Claude Code, Anthropic, Antigravity, Google, DeepSeek, Ubuntu, Canonical, Termux, and Android are trademarks of their respective owners. This project is independent and unaffiliated; names are used only to identify compatibility.
+- **Proprietary third-party agents (open item):** Claude Code (`nextcraft-claude-arm64`) and Antigravity CLI (`nextcraft-agy-arm64`) are proprietary. Re-hosting their binaries in this project's release is redistribution that their vendors' terms may not permit, and no permission has been recorded. Until written permission is obtained, or the installer is changed to download them directly from the vendors' official URLs (as `build-claude-from-official.sh` and `build-agy-from-official.sh` already do when *building* bundles), these two bundles should not be published in the project's public release. This item is tracked here so it is not lost; it is not resolved by documentation alone.
+- **User-supplied credentials:** The app stores and uses API keys and accounts supplied by the user; users must comply with each provider's terms of service.
