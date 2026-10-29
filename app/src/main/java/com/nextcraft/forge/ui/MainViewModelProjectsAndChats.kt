@@ -345,7 +345,8 @@ internal fun MainViewModel.finalizePendingDelete() {
     _state.update { it.copy(undoDelete = null) }
     viewModelScope.launch(Dispatchers.IO) {
         wipeProjectData(project)
-        preferences.pendingProjectWipe = null
+        // A project deleted meanwhile owns the marker now; clearing it would hide that wipe from crash recovery.
+        if (preferences.pendingProjectWipe == project.id) preferences.pendingProjectWipe = null
     }
 }
 
