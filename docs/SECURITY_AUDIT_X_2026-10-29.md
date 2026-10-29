@@ -38,3 +38,18 @@ Fix: reset or drop every `provider_*` and agent-scoped endpoint key (`base_url`,
 - Only grepped or skimmed, not read in depth: `AntigravityRuntimeBridge.kt`, `DshRuntimeBridge.kt`, `GuestProcess.kt`, `NativeSpawnProcess.kt`, `ShellQuote.kt`, `RuntimeExecutionService.kt`, `WorkspaceCheckpoints.kt`, `SnapshotsController.kt`, `ChrootRunner.kt`, `RuntimeSetupService.kt`, `ApiKeyVault.kt` internals, the OAuth/PKCE handling in the three auth controllers, `AndroidAppInstallReceiver.kt`, `ChatImages.kt`, `MainActivity.kt` intent handling, `SilentSelfUpdate.install` (possible TOCTOU between fingerprint and install), rootfs download and archive extraction code, and npm transitive dependencies and postinstall scripts.
 - `network/LocalNetwork.kt` was named in the brief but the hunter reported it missing; the brief's path may have been wrong.
 - The needs_validation record was not independently re-verified; nothing was run on a device or the network.
+
+## Status perbaikan (2026-10-29)
+
+| Temuan / bug | Status |
+|---|---|
+| `restore-prefs-provider-base-url-not-reset` (medium) | DIPERBAIKI: restore dari backup tanpa enkripsi mengabaikan kunci endpoint (`provider_base_url`, `provider_<agen>_base_url`, `debug_update_manifest_url`) dan mempertahankan nilai milik perangkat; backup terenkripsi tidak berubah. Tes: `PrefsXmlTest` (2 tes baru). `debug_update_manifest_url` ternyata preferensi yang tidak dipakai di mana pun, dimasukkan sebagai pertahanan. |
+| `checkpoint-symlink-replaced-path-aborts-undo-and-diff` (medium) | DIPERBAIKI: jalur yang menjadi symlink dilewati per jalur dan tidak pernah ditulis menembus symlink. Tes: `WorkspaceCheckpointsTest` (2 tes baru). Efek samping: batalkan satu giliran kini mengembalikan jalur lain dan melewati yang symlink, lalu menghapus baseline. |
+| `pending-project-wipe-marker-cleared-by-earlier-wipe` (low) | DIPERBAIKI: marker hanya dihapus bila masih milik proyek itu. Tanpa tes unit (butuh `ViewModel` dan preferensi). |
+| `github-pat-connect-untracked-job-survives-disconnect` (low) | DIPERBAIKI: job disimpan di `pollJob`. Tanpa tes unit. |
+| `warm-agy-evict-timer-toctou-kills-reused-session` (low, perlu uji) | BELUM: balapan di `AntigravityRuntimeBridge.kt` (~348-351, 528); perbaikan perlu kunci atau `AtomicReference`. |
+| `claude-login-exit-with-old-credential-reports-signed-in` (low, perlu uji) | BELUM: `ClaudeAuthController.kt` ~270-286 menganggap login berhasil bila proses CLI berhenti dan kredensial lama ada. |
+| `retry-prompt-offer-survives-project-switch` (low, tidak terkonfirmasi) | BELUM: UI yang membaca `retryPrompts` tidak dibaca. |
+| `agent-binary-checksum-from-same-origin-manifest` | TETAP needs_validation: keputusan pemilik proyek. |
+
+Verifikasi: `gradle :app:testDebugUnitTest --offline` → exit 0, 378 tes, 0 gagal, 0 error, 1 dilewati. `assembleDebug -Pnextcraft.sideBySideSuffix=x` → exit 0; APK `x` dipasang dan smoke test lima tab: 0 crash, 0 ANR. Perbaikan restore dan symlink hanya diverifikasi di tingkat tes JVM; alur lewat UI perangkat belum dijalankan ulang. Aplikasi induk `com.nextcraft.forge` belum dibuild ulang dan belum dipasang.
