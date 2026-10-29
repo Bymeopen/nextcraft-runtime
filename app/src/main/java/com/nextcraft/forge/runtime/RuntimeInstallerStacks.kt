@@ -688,15 +688,20 @@ internal suspend fun RuntimeInstaller.aptRemove(
     )
 }
 
-fun RuntimeInstaller.isNdkInstalled(): Boolean =
-    File(rootfs, "${AndroidToolchain.NDK_VERSION_HOST_DIR}/source.properties").isFile ||
-        File(rootfs, AndroidToolchain.NDK_HOST_DIR).listFiles()?.any { File(it, "source.properties").isFile } == true
+fun RuntimeInstaller.isNdkInstalled(): Boolean {
+    if (File(rootfs, ".nextcraft-ndk-installed").isFile) return true
+    if (File(rootfs, "${AndroidToolchain.NDK_VERSION_HOST_DIR}/source.properties").isFile) return true
+    if (File(rootfs, AndroidToolchain.NDK_HOST_DIR).listFiles()?.any { File(it, "source.properties").isFile } == true) return true
+    return false
+}
 
 suspend fun RuntimeInstaller.ensureNdkInstalled(
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
 ) {
     val runtime = installedRuntime()
+    val appUid = android.os.Process.myUid()
     if (isNdkInstalled() && File(rootfs, "${AndroidToolchain.SDK_HOST_DIR}/cmake/3.22.1/bin/ninja").exists()) {
+        File(rootfs, ".nextcraft-ndk-installed").writeMarker(AndroidToolchain.NDK_VERSION)
         onProgress(RuntimeInstallProgress("Android NDK ${AndroidToolchain.NDK_VERSION} is ready", 1f))
         return
     }
@@ -725,12 +730,14 @@ suspend fun RuntimeInstaller.ensureNdkInstalled(
                 "work=\$(mktemp -d $sdkGuest/.ndk-install.XXXXXX)",
                 "trap 'rm -rf \"\$work\" $sdkGuest/.ndk-archive.tar.xz' EXIT",
                 "mkdir -p \"\$work/x\"",
-                "tar -xJf $sdkGuest/.ndk-archive.tar.xz -C \"\$work/x\"",
+                "tar --no-same-owner -xJf $sdkGuest/.ndk-archive.tar.xz -C \"\$work/x\"",
                 "src=\$(find \"\$work/x\" -maxdepth 2 -name source.properties -printf '%h\\n' | head -1)",
                 "rev=\$(sed -n 's/^Pkg.Revision *= *//p' \"\$src/source.properties\" | head -1)",
                 "mkdir -p $sdkGuest/ndk",
                 "rm -rf \"$sdkGuest/ndk/\$rev\"",
                 "mv \"\$src\" \"$sdkGuest/ndk/\$rev\"",
+                "chown -R $appUid:$appUid $sdkGuest/ndk",
+                "chmod -R a+rX $sdkGuest/ndk",
             ).joinToString("; ")
             runGuestCommand(
                 chrootExec = runtime.chrootExec,
@@ -754,6 +761,8 @@ suspend fun RuntimeInstaller.ensureNdkInstalled(
         "ln -sf /usr/bin/cpack $sdkGuest/cmake/3.22.1/bin/cpack",
         "ln -sf /usr/bin/ninja $sdkGuest/cmake/3.22.1/bin/ninja",
         "printf 'Pkg.Desc = CMake 3.22.1 (system aarch64 bridge)\nPkg.Revision = 3.22.1\n' > $sdkGuest/cmake/3.22.1/source.properties",
+        "chown -R $appUid:$appUid $sdkGuest/ndk $sdkGuest/cmake",
+        "chmod -R a+rX $sdkGuest/ndk $sdkGuest/cmake",
     ).joinToString("; ")
     runGuestCommand(
         chrootExec = runtime.chrootExec,
@@ -769,15 +778,28 @@ suspend fun RuntimeInstaller.ensureNdkInstalled(
         "test -f ${AndroidToolchain.NDK_GUEST_DIR}/source.properties && test -x ${AndroidToolchain.NDK_GUEST_DIR}/ndk-build && test -x $sdkGuest/cmake/3.22.1/bin/ninja",
         "Failed to verify Android NDK ${AndroidToolchain.NDK_VERSION}",
     )
+    File(rootfs, ".nextcraft-ndk-installed").writeMarker(AndroidToolchain.NDK_VERSION)
     onProgress(RuntimeInstallProgress("Android NDK ${AndroidToolchain.NDK_VERSION} is ready", 1f))
 }
 
 suspend fun RuntimeInstaller.removeNdk(
     onProgress: suspend (RuntimeInstallProgress) -> Unit,
 ) {
-    installedRuntime()
+    val runtime = installedRuntime()
     if (!isNdkInstalled()) return
     onProgress(RuntimeInstallProgress("Removing Android NDK…", 0.3f, indeterminate = true))
+    runCatching {
+        runGuestCommand(
+            chrootExec = runtime.chrootExec,
+            command = "rm -rf ${AndroidToolchain.SDK_GUEST_DIR}/ndk",
+            displayCommand = "Removing ${AndroidToolchain.SDK_GUEST_DIR}/ndk…",
+            fraction = 0.6f,
+            timeoutMs = 2 * 60_000L,
+            onProgress = onProgress,
+            failureMessage = "Failed to remove Android NDK",
+        )
+    }
     removePath(File(rootfs, AndroidToolchain.NDK_HOST_DIR))
+    removePath(File(rootfs, ".nextcraft-ndk-installed"))
     onProgress(RuntimeInstallProgress("Removed Android NDK", 1f))
 }
