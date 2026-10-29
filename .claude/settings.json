@@ -98,5 +98,19 @@
       "Bash(gradle:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

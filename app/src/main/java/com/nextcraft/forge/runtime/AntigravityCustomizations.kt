@@ -117,7 +117,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agents/scripts/security_gate_v2.py",
+            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
             "timeout": 5
           }
         ]
@@ -139,7 +139,7 @@ Follow these rules to prevent Gemini API safety/recitation filter false-positive
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${'$'}CLAUDE_PROJECT_DIR\"/.agents/scripts/security_gate_v2.py",
+            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
             "timeout": 5
           }
         ]

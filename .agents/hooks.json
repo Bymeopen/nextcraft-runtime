@@ -3,11 +3,11 @@
     "enabled": true,
     "PreToolUse": [
       {
-        "matcher": "run_command|write_file|edit_file",
+        "matcher": "run_command|write_file|edit_file|Bash|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agents/scripts/security_gate.py 2>/dev/null || python3 scripts/security_gate.py",
+            "command": "if [ -f scripts/security_gate_v2.py ]; then python3 scripts/security_gate_v2.py; else python3 .agents/scripts/security_gate_v2.py; fi",
             "timeout": 5
           }
         ]
