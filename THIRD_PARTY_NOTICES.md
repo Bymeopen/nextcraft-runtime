@@ -14,6 +14,7 @@ NextCraft Forge began as a derivative of **Mobile Harness** (`techjarves/Mobile-
 | **PRoot `v5.5.0` (bundled `libproot.so`, `libproot_loader.so`)** | `GPL-2.0-or-later` | Section 5 below |
 | **talloc `2.4.3` (statically linked into PRoot)** | `LGPL-3.0-or-later` | Section 5 below |
 | **Maven runtime dependencies** | `Apache-2.0`, `BSD-2-Clause` | Section 6 below |
+| **Runtime bundles downloaded on first run** | various (see table) | Section 7 below |
 
 ---
 
@@ -80,3 +81,19 @@ Licenses below were read from the artifacts' POM metadata (`<license>` element).
 | `com.github.luben:zstd-jni` | `1.5.7-24` | `BSD-2-Clause` |
 
 The Gradle Wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`) is `Apache-2.0`, copyright the original Gradle authors.
+
+---
+
+## 7. Runtime Bundles (not inside the APK; downloaded on first run)
+The APK contains only the app, `libproot*.so`, and scripts. The first-run installer downloads the `.tar.zst` bundles below from the project release `https://github.com/bymeopen/nextcraft-forge/releases/download/runtime-2026.10.2` (`RuntimeInstaller.kt`, `RuntimeBundle`), verified by pinned SHA-256. Hosting them there is **redistribution** by this project. Builders live in `scripts/runtime-bundles/`.
+
+| Bundle | Contents (per build script) | License / status |
+| :--- | :--- | :--- |
+| `nextcraft-core-arm64` | Ubuntu Base 24.04.5 (`ubuntu-base-24.04.5-base-arm64.tar.gz`), Node.js `v24.22.1`, `git curl wget unzip zip xz-utils zstd jq ripgrep` | Ubuntu packages: GPL/LGPL/others, per-package copyright in `/usr/share/doc/*/copyright` inside the rootfs. Node.js: MIT. Corresponding source for GPL/LGPL packages is available from Ubuntu (`archive.ubuntu.com`); keep this reference with any redistribution. |
+| `nextcraft-android-arm64` | Temurin JDK `21.0.12.1+1`, Gradle `9.8.1`, Android SDK Platform `37.2`, Build-Tools `36.0.0` (Java parts from Google; native `aapt`, `aapt2`, `aidl`, `zipalign`, ... from `lzhiyong/android-sdk-tools` `35.0.2`), offline Maven repository | JDK: GPL-2.0 with Classpath Exception. Gradle: Apache-2.0. Android SDK components: Android Software Development Kit License (Google). `lzhiyong/android-sdk-tools`: license **not yet verified**. Maven repository: per-artifact licenses. |
+| `nextcraft-python-arm64` | Python runtime (`build-python-bundle.sh`) | Expected PSF License plus bundled libraries; build script not yet inspected, contents not itemised. |
+| `nextcraft-claude-arm64` | Claude Code (`@anthropic-ai/claude-code`, pinned `2.1.112`/`2.1.308`; builders download from `downloads.claude.ai`) | **Proprietary** (Anthropic terms). Not open source. Redistribution of this bundle needs written permission from the vendor. **Not yet confirmed.** |
+| `nextcraft-agy-arm64` | Antigravity CLI `agy` `1.4.5` (builder downloads from `storage.googleapis.com/antigravity-public`) | **Proprietary** (Google terms). Redistribution permission **not yet confirmed.** |
+| `nextcraft-dsh-arm64` | DeepSeek harness `dsh` `0.2.1-rc.2` | Upstream source and license **not identified** in the build scripts. |
+
+Additional tools installed by the user inside the guest through `apt`/`pip`/`npm` (for example `qemu-user`, `frida`, `unicorn`, `openssh-client`, `gh` v2.100.0) are fetched from their official sources and are not redistributed by this project.
