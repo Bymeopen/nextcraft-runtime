@@ -16,6 +16,20 @@ android {
         // The release workflow passes -PversionCode=... -PversionName=...; local builds keep the defaults.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 100
         versionName = (project.findProperty("versionName") as String?) ?: "1.0.0-forge"
+        // Side-by-side test builds (not the PRoot edition) carry a stamp so each build can be told apart on the device:
+        // Settings shows versionName as "<version>-x.<git sha>[+dirty].<stamp>", versionCode comes from -Pnextcraft.buildCode.
+        // The stamp is passed on the command line (not read from the clock here) so the configuration cache cannot reuse a stale one.
+        (project.findProperty("nextcraft.sideBySideSuffix") as String?)?.takeIf { it.isNotBlank() && it != "proot" }?.let { suffix ->
+            fun git(vararg args: String): String = providers.exec {
+                commandLine("git", *args)
+                isIgnoreExitValue = true
+            }.standardOutput.asText.get().trim()
+            val sha = git("rev-parse", "--short", "HEAD").ifEmpty { "nogit" }
+            val dirty = if (git("status", "--porcelain").isNotEmpty()) "+dirty" else ""
+            val stamp = (project.findProperty("nextcraft.buildStamp") as String?) ?: "dev"
+            versionName = "$versionName-$suffix.$sha$dirty.$stamp"
+            (project.findProperty("nextcraft.buildCode") as String?)?.toIntOrNull()?.let { versionCode = it }
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
