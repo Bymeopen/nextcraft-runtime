@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -506,7 +507,10 @@ fun LiveResourceMiniBar(
     val tokens = LocalForgeThemeTokens.current
     val scheme = MaterialTheme.colorScheme
     val stats = remember { mutableStateOf("") }
-    androidx.compose.runtime.LaunchedEffect(configuration) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.LaunchedEffect(configuration, lifecycleOwner) {
+      // Poll only while the app is visible; the loop is cancelled in the background and restarts on return.
+      lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
         while (true) {
             // /proc reads, ActivityManager IPC and the sticky battery broadcast all block; keep them off the main thread.
             stats.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -530,6 +534,7 @@ fun LiveResourceMiniBar(
             }
             kotlinx.coroutines.delay(5_000)
         }
+      }
     }
     if (stats.value.isEmpty()) return
     Row(

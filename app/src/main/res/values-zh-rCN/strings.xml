@@ -1004,6 +1004,7 @@
     <string name="mt_snap_invalid_id">无效的项目 ID</string>
     <string name="mt_snap_no_folder">未找到项目文件夹</string>
     <string name="mt_snap_save_failed">无法保存快照</string>
+    <string name="mt_oauth_host_only">Claude OAuth 凭据只能发送到 api.anthropic.com。自定义端点请使用 API 密钥。</string>
     <string name="mt_snap_read_back">无法回读快照</string>
     <string name="mt_snap_missing">快照文件丢失</string>
     <string name="mt_snap_unsafe">快照包含不安全的路径</string>

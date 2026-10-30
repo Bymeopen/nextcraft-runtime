@@ -31,13 +31,22 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
     }
 
     /** Downloads (verified by [AppUpdater]) and starts the silent install. False means nothing changed. */
-    private fun installInBackground(info: AppUpdateInfo): Boolean = runCatching {
-        val apk = AppUpdater(applicationContext).download(info) { _, _ -> }
-        com.nextcraft.forge.update.SilentSelfUpdate.install(applicationContext, apk)
-    }.getOrDefault(false)
+    private fun installInBackground(info: AppUpdateInfo): Boolean {
+        val state = applicationContext.getSharedPreferences("nextcraft_update_worker", Context.MODE_PRIVATE)
+        // A target that already failed to download/verify/install is not fetched again (up to 512 MB every 15 minutes)
+        // until a newer versionCode is published.
+        if (state.getLong(KEY_FAILED_VERSION, -1L) == info.versionCode) return false
+        val installed = runCatching {
+            val apk = AppUpdater(applicationContext).download(info) { _, _ -> }
+            com.nextcraft.forge.update.SilentSelfUpdate.install(applicationContext, apk)
+        }.getOrDefault(false)
+        if (!installed) state.edit().putLong(KEY_FAILED_VERSION, info.versionCode).apply()
+        return installed
+    }
 
     companion object {
         private const val WORK_NAME = "app-update-check"
+        private const val KEY_FAILED_VERSION = "failed_version_code"
 
         /** Every 15 minutes while the network is up; the same request is kept when scheduled again. */
         fun schedule(context: Context) {

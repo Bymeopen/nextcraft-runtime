@@ -166,7 +166,10 @@ suspend fun MainViewModel.loadChatImage(src: String): androidx.compose.ui.graphi
     runCatching {
         when (source) {
             is ChatImageSource.Data -> {
-                val key = "data|${source.base64.length}|${source.base64.hashCode()}"
+                // Same size cap as the other branches (base64 is 4/3 of the decoded size).
+                if (source.base64.length > ChatImageDecoder.MAX_BYTES / 3 * 4 + 8) return@runCatching null
+                val digest = java.security.MessageDigest.getInstance("SHA-256").digest(source.base64.toByteArray(Charsets.UTF_8))
+                val key = "data|" + digest.joinToString("") { "%02x".format(it) }
                 chatImageCache.get(key) ?: ChatImageDecoder.decode(android.util.Base64.decode(source.base64, android.util.Base64.DEFAULT))
                     ?.also { chatImageCache.put(key, it) }
             }
@@ -190,7 +193,7 @@ suspend fun MainViewModel.loadChatImage(src: String): androidx.compose.ui.graphi
                 chatImageCache.get(key) ?: ChatImageDecoder.decode(file.readBytes())?.also { chatImageCache.put(key, it) }
             }
         }
-    }.getOrNull()
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
 }
 
 // ── Connectors (MCP) and skills for Claude Code ──────────────────────────────────────────────

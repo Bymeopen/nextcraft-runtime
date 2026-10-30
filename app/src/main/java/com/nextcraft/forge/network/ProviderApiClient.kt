@@ -239,7 +239,7 @@ class ProviderApiClient(@Suppress("UNUSED_PARAMETER") private val context: Conte
         val isAntApiKey = trimmedToken.startsWith("sk-ant-api")
         val targetsOfficialAnthropic = runCatching {
             parsedUrl.host.equals("api.anthropic.com", ignoreCase = true)
-        }.getOrDefault(rawUri.contains("api.anthropic.com", ignoreCase = true))
+        }.getOrDefault(false)
 
         val isAnthropicFamily = protocol == ProviderProtocol.ANTHROPIC ||
             protocol == ProviderProtocol.CLAUDE_LOGIN ||
@@ -253,6 +253,10 @@ class ProviderApiClient(@Suppress("UNUSED_PARAMETER") private val context: Conte
         }
 
         val sendOAuthHeaders = isOatToken || (protocol == ProviderProtocol.CLAUDE_LOGIN && !isAntApiKey)
+        // The OAuth bearer token is only valid for Anthropic; never hand it to a custom base URL.
+        require(!sendOAuthHeaders || targetsOfficialAnthropic) {
+            "Claude OAuth credentials can only be sent to api.anthropic.com. Use an API key for custom endpoints."
+        }
         when {
             sendOAuthHeaders -> {
                 conn.setRequestProperty("Authorization", "Bearer $trimmedToken")

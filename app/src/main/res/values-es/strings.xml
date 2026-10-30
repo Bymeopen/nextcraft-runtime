@@ -1038,6 +1038,7 @@
     <string name="mt_snap_invalid_id">ID de proyecto no válido</string>
     <string name="mt_snap_no_folder">No se encontró la carpeta del proyecto</string>
     <string name="mt_snap_save_failed">No se pudo guardar la instantánea</string>
+    <string name="mt_oauth_host_only">Las credenciales OAuth de Claude solo se pueden enviar a api.anthropic.com. Usa una clave de API para endpoints personalizados.</string>
     <string name="mt_snap_read_back">No se pudo volver a leer la instantánea</string>
     <string name="mt_snap_missing">Falta el archivo de la instantánea</string>
     <string name="mt_snap_unsafe">La instantánea contiene una ruta no segura</string>

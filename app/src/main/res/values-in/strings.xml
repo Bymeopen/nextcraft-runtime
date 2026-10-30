@@ -1010,6 +1010,7 @@
     <string name="mt_snap_invalid_id">ID proyek tidak valid</string>
     <string name="mt_snap_no_folder">Folder proyek tidak ditemukan</string>
     <string name="mt_snap_save_failed">Tidak bisa menyimpan snapshot</string>
+    <string name="mt_oauth_host_only">Kredensial OAuth Claude hanya dapat dikirim ke api.anthropic.com. Gunakan kunci API untuk endpoint khusus.</string>
     <string name="mt_snap_read_back">Tidak bisa membaca ulang snapshot</string>
     <string name="mt_snap_missing">Berkas snapshot tidak ada</string>
     <string name="mt_snap_unsafe">Snapshot berisi path yang tidak aman</string>

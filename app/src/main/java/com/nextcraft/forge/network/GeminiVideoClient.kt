@@ -26,7 +26,10 @@ object GeminiVideoModels {
 /** The file id inside a Gemini Files API address (`.../v1beta/files/<id>:download?alt=media`), or null. */
 internal fun geminiFileId(uri: String): String? = Regex("/files/([A-Za-z0-9_-]+)").find(uri)?.groupValues?.get(1)
 
-/** Only Google's own hosts may receive the API key while following a redirect. */
+/** The only host that receives the API key; redirect targets (storage / usercontent) use signed URLs instead. */
+internal fun isGeminiApiHost(host: String?): Boolean = host?.lowercase() == "generativelanguage.googleapis.com"
+
+/** Redirects may only be followed to Google's own hosts. */
 internal fun isGoogleHost(host: String?): Boolean {
     val h = host?.lowercase() ?: return false
     return h == "googleapis.com" || h.endsWith(".googleapis.com") || h.endsWith(".googleusercontent.com")
@@ -188,7 +191,7 @@ class GeminiVideoClient {
                 instanceFollowRedirects = false
                 connectTimeout = 15_000
                 readTimeout = 120_000
-                setRequestProperty("x-goog-api-key", apiKey.trim())
+                if (isGeminiApiHost(parsed.host)) setRequestProperty("x-goog-api-key", apiKey.trim())
             }
             try {
                 val code = connection.responseCode

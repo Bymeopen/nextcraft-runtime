@@ -20,7 +20,10 @@ android {
         minSdk = 31
         targetSdk = 36
         // The release workflow passes -PversionCode=... -PversionName=...; local builds keep the defaults.
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 100
+        // A mistyped -PversionCode must fail the build; silently falling back to 100 would break updates (downgrade).
+        versionCode = (project.findProperty("versionCode") as String?)?.takeIf { it.isNotBlank() }?.let {
+            it.trim().toIntOrNull() ?: throw GradleException("-PversionCode must be an integer, got '$it'")
+        } ?: 100
         versionName = (project.findProperty("versionName") as String?) ?: "1.0.0-forge"
         // Side-by-side test builds carry a stamp so each build can be told apart on the device:
         // Settings shows versionName as "<version>-x.<git sha>[+dirty].<stamp>", versionCode comes from -Pnextcraft.buildCode.
@@ -34,7 +37,9 @@ android {
             val dirty = if (git("status", "--porcelain").isNotEmpty()) "+dirty" else ""
             val stamp = (project.findProperty("nextcraft.buildStamp") as String?) ?: "dev"
             versionName = "$versionName-$suffix.$sha$dirty.$stamp"
-            (project.findProperty("nextcraft.buildCode") as String?)?.toIntOrNull()?.let { versionCode = it }
+            (project.findProperty("nextcraft.buildCode") as String?)?.takeIf { it.isNotBlank() }?.let {
+                versionCode = it.trim().toIntOrNull() ?: throw GradleException("-Pnextcraft.buildCode must be an integer, got '$it'")
+            }
         }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

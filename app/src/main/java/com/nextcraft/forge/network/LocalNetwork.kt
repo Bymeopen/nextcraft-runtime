@@ -8,8 +8,9 @@ import java.net.URI
  * Plain-HTTP policy and localhost port-discovery utilities for NextCraft Forge.
  *
  * Self-hosted model servers (llama.cpp, LM Studio, Ollama, vLLM, LocalFormatGateway, etc.)
- * and local dev servers inside the Ubuntu chroot speak plain HTTP on loopback, LAN, or Tailscale.
- * Public internet endpoints must always use HTTPS.
+ * and local dev servers inside the Ubuntu chroot speak plain HTTP on loopback.
+ * Plain HTTP is allowed for loopback only (matches res/xml/network_security_config.xml); everything else, including
+ * LAN and Tailscale hosts, must use HTTPS. [isLocalHost] is a classification helper, not a cleartext allowance.
  */
 object LocalNetwork {
     private val localSuffixes = listOf(
@@ -35,6 +36,7 @@ object LocalNetwork {
         8888,
     )
 
+    /** HTTPS for any host; plain HTTP only for loopback ([isLoopbackHost]). */
     fun isPlainHttpAllowed(url: String): Boolean {
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase() ?: return false

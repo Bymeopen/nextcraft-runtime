@@ -70,6 +70,7 @@ internal object MessageText {
         "Invalid project id" to R.string.mt_snap_invalid_id,
         "Project folder not found" to R.string.mt_snap_no_folder,
         "Could not save the snapshot" to R.string.mt_snap_save_failed,
+        "Claude OAuth credentials can only be sent to api.anthropic.com. Use an API key for custom endpoints." to R.string.mt_oauth_host_only,
         "Could not read the snapshot back" to R.string.mt_snap_read_back,
         "Snapshot file is missing" to R.string.mt_snap_missing,
         "Snapshot contains an unsafe path" to R.string.mt_snap_unsafe,

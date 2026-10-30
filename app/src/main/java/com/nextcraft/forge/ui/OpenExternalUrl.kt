@@ -38,6 +38,10 @@ internal fun openUrlOrCopy(context: Context, url: String, copyToClipboard: (Stri
 
 private val autoOpenedLinks = HashSet<String>()
 private var lastAutoSubmittedCode: String? = null
+private var lastAutoSubmittedAt = 0L
+
+/** The submit result is not visible here, so a remembered code expires and a failed one can be retried later. */
+private const val AUTO_SUBMIT_MEMORY_MS = 60_000L
 
 /** Google OAuth authorization codes look like `4/0A...`; anything else on the clipboard is ignored. */
 private val GOOGLE_AUTH_CODE = Regex("^4/[A-Za-z0-9_.\\-]{20,200}$")
@@ -74,8 +78,10 @@ internal fun AutoSubmitClipboardCode(awaitingCode: Boolean, onCode: (String) -> 
         for (waitMs in longArrayOf(0, 300, 700, 1_500)) {
             delay(waitMs)
             val text = clipboard.getText()?.text?.trim().orEmpty()
-            if (looksLikeGoogleAuthCode(text) && text != lastAutoSubmittedCode) {
+            if (looksLikeGoogleAuthCode(text) && 
+                (text != lastAutoSubmittedCode || System.currentTimeMillis() - lastAutoSubmittedAt > AUTO_SUBMIT_MEMORY_MS)) {
                 lastAutoSubmittedCode = text
+                lastAutoSubmittedAt = System.currentTimeMillis()
                 onCode(text)
                 return@LaunchedEffect
             }

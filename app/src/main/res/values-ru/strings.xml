@@ -1055,6 +1055,7 @@
     <string name="mt_snap_invalid_id">Недопустимый id проекта</string>
     <string name="mt_snap_no_folder">Папка проекта не найдена</string>
     <string name="mt_snap_save_failed">Не удалось сохранить снимок</string>
+    <string name="mt_oauth_host_only">Учётные данные Claude OAuth можно отправлять только на api.anthropic.com. Для своих эндпоинтов используйте ключ API.</string>
     <string name="mt_snap_read_back">Не удалось прочитать снимок обратно</string>
     <string name="mt_snap_missing">Файл снимка отсутствует</string>
     <string name="mt_snap_unsafe">Снимок содержит небезопасный путь</string>

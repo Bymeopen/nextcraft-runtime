@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -12,11 +13,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.nextcraft.forge.CrashReporter
 import com.nextcraft.forge.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CrashReportPrompt() {
     val hostContext = LocalContext.current
-    var showPrompt by remember { mutableStateOf(CrashReporter.hasUnseen(hostContext)) }
+    var showPrompt by remember { mutableStateOf(false) }
+    // hasUnseen reads the disk: keep it out of composition.
+    LaunchedEffect(Unit) {
+        showPrompt = withContext(Dispatchers.IO) { CrashReporter.hasUnseen(hostContext) }
+    }
     if (!showPrompt) return
 
     fun acknowledgeAndClose() {

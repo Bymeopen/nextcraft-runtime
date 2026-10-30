@@ -444,7 +444,8 @@ internal fun AntigravityAccountCard(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var manualCode by rememberSaveable { mutableStateOf(false) }
-    var agyVerificationCode by rememberSaveable { mutableStateOf("") }
+    // remember, not rememberSaveable: the OAuth code must not be written into the saved-instance Bundle.
+    var agyVerificationCode by remember { mutableStateOf("") }
     val hasAgyCredential by produceState(initialValue = false, agyAuth.status) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { viewModel.antigravityAuth.hasOfficialCredential() }
     }

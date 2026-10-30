@@ -62,8 +62,23 @@ class AutoBackupSettings(context: Context) {
         set(value) = prefs.edit {putString("last_error", value)}
 
     var password: String
-        get() = vault.get(PASSWORD_ID).orEmpty()
-        set(value) = if (value.isEmpty()) vault.remove(PASSWORD_ID) else vault.put(PASSWORD_ID, value)
+        get() = vault.get(PASSWORD_ID).orEmpty().also { if (it.isNotEmpty()) markPasswordConfigured() }
+        set(value) {
+            if (value.isEmpty()) vault.remove(PASSWORD_ID) else vault.put(PASSWORD_ID, value)
+            prefs.edit { putBoolean("password_set", value.isNotEmpty()) }
+        }
+
+    /**
+     * True when the user configured a password, even if the vault cannot decrypt it right now (Keystore unavailable,
+     * device locked). Lets the worker refuse to fall back to a plaintext backup in that case.
+     */
+    val passwordConfigured: Boolean
+        get() = prefs.getBoolean("password_set", false)
+
+    // Backups configured before the flag existed learn it the first time the password is read successfully.
+    private fun markPasswordConfigured() {
+        if (!passwordConfigured) prefs.edit { putBoolean("password_set", true) }
+    }
 
     companion object {
         private const val PASSWORD_ID = "auto_backup_password"
@@ -78,8 +93,14 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWo
         val target = settings.target
         if (folder == null && target == null) return Result.success()
         val password = settings.password
+        if (password.isEmpty() && settings.passwordConfigured) {
+            // Never fall back to a plaintext archive when an encrypted backup was requested.
+            settings.lastRunAt = System.currentTimeMillis()
+            settings.lastError = "The backup password could not be read (device locked or Keystore unavailable)"
+            return Result.retry()
+        }
         return runCatching {
-            // Build the archive in a private temp file first so a failure mid-way never truncates the previous backup.
+            // Build the archive in a private temp file first so a failure while creating it never touches the previous backup.
             val temp = File.createTempFile("auto-backup-", ".tmp", applicationContext.cacheDir)
             try {
                 BackupManager(applicationContext).create(
@@ -91,11 +112,19 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWo
                     writeVersioned(folder, temp)
                 } else {
                     val destUri = target ?: error("The backup file is no longer reachable")
+                    // A SAF document cannot be replaced atomically: opening it with "wt" truncates it, so refuse an empty archive first.
+                    check(temp.length() > 0) { "The backup archive is empty" }
                     val out = applicationContext.contentResolver.openOutputStream(destUri, "wt") ?: error("The backup file is no longer reachable")
                     out.use { sink -> temp.inputStream().use { it.copyTo(sink) } }
                 }
             } finally {
                 temp.delete()
+            }
+        }.onFailure {
+            // Out of time (WorkManager's ~10 min limit) or stopped: record why, then let the cancellation propagate.
+            if (it is kotlinx.coroutines.CancellationException) {
+                settings.lastError = "The backup was interrupted before it finished"
+                throw it
             }
         }.fold(
             onSuccess = {

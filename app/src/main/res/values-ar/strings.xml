@@ -1089,6 +1089,7 @@
     <string name="mt_snap_invalid_id">معرّف المشروع غير صالح</string>
     <string name="mt_snap_no_folder">لم يتم العثور على مجلد المشروع</string>
     <string name="mt_snap_save_failed">تعذّر حفظ اللقطة</string>
+    <string name="mt_oauth_host_only">لا يمكن إرسال بيانات اعتماد Claude OAuth إلا إلى api.anthropic.com. استخدم مفتاح API للنقاط الطرفية المخصصة.</string>
     <string name="mt_snap_read_back">تعذّرت إعادة قراءة اللقطة</string>
     <string name="mt_snap_missing">ملف اللقطة مفقود</string>
     <string name="mt_snap_unsafe">تحتوي اللقطة على مسار غير آمن</string>

@@ -58,7 +58,7 @@ class AppUpdater(
         }
     }
 
-    fun download(info: AppUpdateInfo, progress: (Long, Long) -> Unit): File {
+    fun download(info: AppUpdateInfo, progress: (Long, Long) -> Unit): File = synchronized(DOWNLOAD_LOCK) {
         require(info.apkUrl.startsWith("https://")) { "Update APK URL must use HTTPS." }
         val variant = appVariant()
         val directory = File(context.filesDir, "updates").also { it.mkdirs() }
@@ -104,7 +104,7 @@ class AppUpdater(
                 error("Could not replace previous staged update APK.")
             }
             check(partial.renameTo(target)) { "Could not finalize downloaded update APK." }
-            return target
+            return@synchronized target
         } catch (error: Throwable) {
             partial.delete()
             throw error
@@ -137,6 +137,9 @@ class AppUpdater(
     }
 
     companion object {
+        /** The Worker and the UI share one staged file name, so only one download may run per process. */
+        private val DOWNLOAD_LOCK = Any()
+
         /**
          * Reads the update for [variant] out of a manifest, or null when there is none for this package/version/
          * variant. The artifact must be listed under `artifacts.<variant>` (or a top-level `<variant>` object);

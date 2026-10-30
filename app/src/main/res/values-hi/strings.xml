@@ -1021,6 +1021,7 @@
     <string name="mt_snap_invalid_id">अमान्य project id</string>
     <string name="mt_snap_no_folder">Project फ़ोल्डर नहीं मिला</string>
     <string name="mt_snap_save_failed">Snapshot सेव नहीं हो सका</string>
+    <string name="mt_oauth_host_only">Claude OAuth क्रेडेंशियल केवल api.anthropic.com को भेजे जा सकते हैं। कस्टम एंडपॉइंट के लिए API कुंजी का उपयोग करें।</string>
     <string name="mt_snap_read_back">Snapshot वापस पढ़ा नहीं जा सका</string>
     <string name="mt_snap_missing">Snapshot फ़ाइल नहीं मिली</string>
     <string name="mt_snap_unsafe">Snapshot में असुरक्षित पाथ है</string>

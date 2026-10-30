@@ -157,7 +157,8 @@ class ScheduleStore(context: Context) {
     @Synchronized
     fun load(): List<ScheduledTask> = runCatching {
         val arr = JSONArray(prefs.getString(KEY, "[]"))
-        (0 until arr.length()).map { i ->
+        // Parse entries one by one: a single malformed entry must not drop the list (the next save would overwrite it).
+        (0 until arr.length()).mapNotNull { i -> runCatching {
             val o = arr.getJSONObject(i)
             ScheduledTask(
                 id = o.getString("id"), projectId = o.getString("projectId"), chatId = o.getString("chatId"),
@@ -166,7 +167,7 @@ class ScheduleStore(context: Context) {
                 byAgent = o.optBoolean("byAgent", false), runCount = o.optInt("runCount", 0),
                 lastRunAtMillis = o.optLong("last", 0L),
             )
-        }
+        }.getOrNull() }
     }.getOrDefault(emptyList())
 
     @Synchronized

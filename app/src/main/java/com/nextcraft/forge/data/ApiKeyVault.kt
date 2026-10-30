@@ -117,7 +117,8 @@ class ApiKeyVault(context: Context) {
     @Synchronized
     fun list(providerId: String): List<ApiKeyInfo> {
         val entries = ensurePool(providerId)
-        val active = activeId(providerId) ?: entries.firstOrNull()?.id
+        // A stale active id (key removed) must not leave the pool with no active key.
+        val active = activeId(providerId)?.takeIf { id -> entries.any { it.id == id } } ?: entries.firstOrNull()?.id
         return entries.map { it.copy(isActive = it.id == active) }
     }
 

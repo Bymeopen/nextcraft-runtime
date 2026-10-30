@@ -721,16 +721,27 @@ fun MainViewModel.cloneGitHubRepository(repo: GitHubRepository) {
 fun MainViewModel.createQuickProject() {
     viewModelScope.launch {
         val project = withContext(Dispatchers.IO) {
-            val identity = generateQuickChatIdentity(_state.value.projects.map { it.slug }.toSet(), str(R.string.quick_project_name))
-            val project = Project(
-                name = identity.displayName,
-                description = "Quick project",
-                language = "Multi-language",
-                slug = identity.slug,
-                kind = ProjectKind.QUICK_PROJECT,
-            )
-            checkpoints.ensureWorkspace(project.id)
-            project
+            // Pick and reserve under one lock (like reserveProjectSlug) so two quick creates never share a slug.
+            val identity = synchronized(reservedSlugs) {
+                generateQuickChatIdentity(
+                    _state.value.projects.map { it.slug }.toSet() + reservedSlugs,
+                    str(R.string.quick_project_name),
+                ).also { reservedSlugs += it.slug }
+            }
+            try {
+                val project = Project(
+                    name = identity.displayName,
+                    description = "Quick project",
+                    language = "Multi-language",
+                    slug = identity.slug,
+                    kind = ProjectKind.QUICK_PROJECT,
+                )
+                checkpoints.ensureWorkspace(project.id)
+                project
+            } catch (error: Throwable) {
+                synchronized(reservedSlugs) { reservedSlugs -= identity.slug }
+                throw error
+            }
         }
         configureAllProjectRoots(prependProject(project))
         leaveOpenFile {
@@ -777,7 +788,7 @@ fun MainViewModel.importZipProject(uri: android.net.Uri) {
                 val isZip = magic.size == 4 && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte() &&
                     magic[2] == 0x03.toByte() && magic[3] == 0x04.toByte()
                 if (!isZip) throw IllegalArgumentException("$displayName is not a ZIP archive")
-                val cleanName = displayName.removeSuffix(".zip").ifBlank { "Imported project" }
+                val cleanName = displayName.removeSuffix(".zip").removeSuffix(".ZIP").ifBlank { "Imported project" }
                 val slug = reserveProjectSlug(projectSlug(cleanName))
                 val project = Project(
                     name = cleanName,
@@ -821,20 +832,16 @@ fun MainViewModel.importZipProject(uri: android.net.Uri) {
                         }
                     }
                 } ?: throw IllegalStateException("Cannot open $displayName")
-                } catch (error: Throwable) {
-                    // Nothing registered this workspace yet: remove the half-extracted files and free the slug.
-                    runCatching { ws.deleteRecursivelyNoFollow() }
-                    synchronized(reservedSlugs) { reservedSlugs -= slug }
-                    throw error
-                }
                 // If the archive unpacked into a single top-level wrapper folder (like GitHub's repo-main.zip),
                 // hoist its contents up to the workspace root so tools see files directly at /workspace/<slug>.
                 val topEntries = ws.listFiles()?.filter { it.name != "__MACOSX" }.orEmpty()
                 if (topEntries.size == 1 && topEntries[0].isDirectory) {
-                    val wrapper = topEntries[0]
+                    // Rename the wrapper first so a child with the wrapper's own name (app/app/...) does not collide.
+                    val wrapper = File(ws, ".import-wrapper-${System.nanoTime()}")
+                    check(topEntries[0].renameTo(wrapper)) { "Could not unpack the wrapper folder" }
                     wrapper.listFiles()?.forEach { child ->
                         val dest = File(ws, child.name)
-                        if (!dest.exists()) child.renameTo(dest)
+                        if (!dest.exists()) check(child.renameTo(dest)) { "Could not move ${child.name} out of the wrapper folder" }
                     }
                     if (wrapper.listFiles().isNullOrEmpty()) wrapper.delete()
                 }
@@ -843,6 +850,12 @@ fun MainViewModel.importZipProject(uri: android.net.Uri) {
                     type = if (isAndroidProject) ProjectType.ANDROID else ProjectType.GENERAL,
                     language = if (isAndroidProject) "Kotlin / Android" else "Multi-language",
                 )
+                } catch (error: Throwable) {
+                    // Nothing registered this workspace yet: remove the half-extracted files and free the slug.
+                    runCatching { ws.deleteRecursivelyNoFollow() }
+                    synchronized(reservedSlugs) { reservedSlugs -= slug }
+                    throw error
+                }
             }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("MainViewModel", it) }
         }
         result.onSuccess { newProject ->

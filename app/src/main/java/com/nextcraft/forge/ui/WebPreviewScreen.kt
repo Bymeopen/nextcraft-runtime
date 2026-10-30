@@ -301,6 +301,13 @@ fun WebPreviewScreen(
                             request: android.webkit.WebResourceRequest,
                         ): Boolean = request.url.scheme?.lowercase() !in setOf("http", "https")
 
+                        // In-page navigation (links, redirects) updates the address bar. The reload effect compares with
+                        // webView.url first, so storing the same address does not trigger another loadUrl.
+                        override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                            val current = (view.url ?: url)?.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: return
+                            if (current != viewModel.state.value.previewUrl) viewModel.updatePreviewUrl(current)
+                        }
+
                         // A page that sets no background of its own must look like it does in a browser (white). With the app's dark
                         // surface behind it, plain HTML (directory listings, quick tests) rendered black text on dark and was unreadable.
                         // The dark colour stays only until the first paint, so there is no white flash on open.

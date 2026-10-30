@@ -1027,6 +1027,7 @@
     <string name="mt_snap_invalid_id">Invalid project id</string>
     <string name="mt_snap_no_folder">Project folder not found</string>
     <string name="mt_snap_save_failed">Could not save the snapshot</string>
+    <string name="mt_oauth_host_only">Claude OAuth credentials can only be sent to api.anthropic.com. Use an API key for custom endpoints.</string>
     <string name="mt_snap_read_back">Could not read the snapshot back</string>
     <string name="mt_snap_missing">Snapshot file is missing</string>
     <string name="mt_snap_unsafe">Snapshot contains an unsafe path</string>
