@@ -40,9 +40,9 @@ jobs:
           gradle-version: "9.8.2"
       - name: Compute version
         run: |
-          # Local builds are already at 1.0.138 / versionCode 20000138. The offset puts CI builds above them (run 127 -> 1.0.140),
+          # Local builds are already at 1.0.143 / versionCode 20000143. The offset puts CI builds above them (run 130 -> 1.0.144),
           # so the release installs over a local build and the in-app updater offers it; raise it again if local builds overtake CI.
-          BUILD=$((GITHUB_RUN_NUMBER + 13))
+          BUILD=$((GITHUB_RUN_NUMBER + 14))
           echo "VERSION_NAME=1.0.${BUILD}-forge" >> "$GITHUB_ENV"
           echo "TAG=dev-latest" >> "$GITHUB_ENV"
           echo "PACKAGE=com.nextcraft.forge" >> "$GITHUB_ENV"
