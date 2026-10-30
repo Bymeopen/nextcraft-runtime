@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <!-- Only locations that APKs are shared from; never expose the whole filesDir (runtime env, chats, rootfs). -->
-    <files-path name="workspaces" path="workspaces/" />
-    <files-path name="updates" path="updates/" />
-    <!-- Camera captures only (AgentScreen); the rest of cacheDir holds auth logs, downloads and restore staging. -->
-    <cache-path name="internal_cache" path="camera/" />
-</paths>
