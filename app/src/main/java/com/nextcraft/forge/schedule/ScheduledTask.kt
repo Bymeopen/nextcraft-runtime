@@ -42,6 +42,11 @@ object ScheduleRules {
         return minutes.takeIf { it in MIN_INTERVAL_MINUTES..MAX_INTERVAL_MINUTES }?.toInt()
     }
 
+    private val HAS_TEXT = Regex("[\\p{L}\\p{N}]")
+
+    /** A prompt worth sending: it has at least one letter or digit ("...", "-" or blank are not tasks). */
+    fun hasText(prompt: String): Boolean = HAS_TEXT.containsMatchIn(prompt)
+
     fun label(minutes: Int): String = when {
         minutes % (24 * 60) == 0 -> "${minutes / (24 * 60)}d"
         minutes % 60 == 0 -> "${minutes / 60}h"
@@ -68,7 +73,6 @@ object ScheduleDirectives {
         setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE),
     )
     private val CODE_FENCE = Regex("(?s)```.*?```")
-    private val HAS_TEXT = Regex("[\\p{L}\\p{N}]")
     private val UNSCHEDULE = Regex("""\[\[\s*unschedule\s*\]\]""", RegexOption.IGNORE_CASE)
 
     private val KEYWORDS = Regex(
@@ -88,7 +92,7 @@ object ScheduleDirectives {
             val prompt = m.groupValues[2].trim().take(ScheduleRules.MAX_PROMPT_LENGTH)
             // A prompt of only punctuation ("...") or an unfilled `<placeholder>` is the syntax being quoted, not a task.
             val isPlaceholder = prompt.startsWith("<") && prompt.endsWith(">")
-            if (HAS_TEXT.containsMatchIn(prompt) && !isPlaceholder) found += m.range.first to ScheduleDirective.Schedule(minutes, prompt)
+            if (ScheduleRules.hasText(prompt) && !isPlaceholder) found += m.range.first to ScheduleDirective.Schedule(minutes, prompt)
         }
         UNSCHEDULE.findAll(text).forEach { found += it.range.first to ScheduleDirective.Unschedule }
         return found.sortedBy { it.first }.map { it.second }
@@ -170,6 +174,8 @@ class ScheduleStore(context: Context) {
         // Parse entries one by one: a single malformed entry must not drop the list (the next save would overwrite it).
         (0 until arr.length()).mapNotNull { i -> runCatching {
             val o = arr.getJSONObject(i)
+            // Timers saved by an older build with a placeholder prompt ("...") would re-send it forever: drop them.
+            if (!ScheduleRules.hasText(o.getString("prompt"))) return@runCatching null
             ScheduledTask(
                 id = o.getString("id"), projectId = o.getString("projectId"), chatId = o.getString("chatId"),
                 prompt = o.getString("prompt"), intervalMinutes = o.getInt("intervalMinutes"),

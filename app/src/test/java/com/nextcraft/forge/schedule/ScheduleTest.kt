@@ -43,6 +43,14 @@ class ScheduleTest {
         )
     }
 
+    @Test fun placeholderPromptsAreNotTasks() {
+        assertFalse(ScheduleRules.hasText("..."))
+        assertFalse(ScheduleRules.hasText("  - "))
+        assertFalse(ScheduleRules.hasText(""))
+        assertTrue(ScheduleRules.hasText("Check CI"))
+        assertTrue(ScheduleRules.hasText("cek 1x"))
+    }
+
     @Test fun noteOnlyWhenRelevant() {
         assertTrue(ScheduleDirectives.augment("pantau build tiap 30 menit", true).contains("[[schedule"))
         assertEquals("fix the bug", ScheduleDirectives.augment("fix the bug", true))
