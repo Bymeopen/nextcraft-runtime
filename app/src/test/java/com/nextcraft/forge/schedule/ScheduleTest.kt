@@ -30,6 +30,27 @@ class ScheduleTest {
         assertTrue(ScheduleDirectives.parse("no directive here").isEmpty())
     }
 
+    @Test fun quotedSyntaxDoesNotSchedule() {
+        // A bug report that mentions the syntax must not start a recurring task (it once created a 5m "..." timer).
+        assertTrue(ScheduleDirectives.parse("- `ScheduledTask.kt`: the reply text (`[[schedule: 5m | ...]]`) starts a task").isEmpty())
+        assertTrue(ScheduleDirectives.parse("[[schedule: 5m | ...]]").isEmpty())
+        assertTrue(ScheduleDirectives.parse("[[schedule: 30m | <prompt to send back to this chat>]]").isEmpty())
+        assertTrue(ScheduleDirectives.parse("Example:\n```\n[[schedule: 30m | Check CI]]\n```").isEmpty())
+        assertTrue(ScheduleDirectives.parse("see [[schedule: 30m | Check CI]] for the format").isEmpty())
+        assertEquals(
+            listOf(ScheduleDirective.Schedule(30, "Check CI")),
+            ScheduleDirectives.parse("Done.\n[[schedule: 30m | Check CI]]"),
+        )
+    }
+
+    @Test fun placeholderPromptsAreNotTasks() {
+        assertFalse(ScheduleRules.hasText("..."))
+        assertFalse(ScheduleRules.hasText("  - "))
+        assertFalse(ScheduleRules.hasText(""))
+        assertTrue(ScheduleRules.hasText("Check CI"))
+        assertTrue(ScheduleRules.hasText("cek 1x"))
+    }
+
     @Test fun noteOnlyWhenRelevant() {
         assertTrue(ScheduleDirectives.augment("pantau build tiap 30 menit", true).contains("[[schedule"))
         assertEquals("fix the bug", ScheduleDirectives.augment("fix the bug", true))
