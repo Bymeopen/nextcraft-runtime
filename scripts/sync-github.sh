@@ -54,7 +54,9 @@ PY
 git add -A -- . ':!*.env' ':!.env.*' ':!*.pem' ':!*.jks' ':!*.p12' ':!*.keystore' ':!*.key'
 # No `grep -q` here: it exits at the first match, the upstream grep then dies of SIGPIPE and pipefail turns the
 # pipeline into "failed", so a real secret in a large diff would pass the scan.
-if git diff --cached -U0 | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -E 'ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}' >/dev/null; then
+# The added lines are captured first and matched with a here-string, so no upstream stage can die of SIGPIPE.
+added_lines="$(git diff --cached -U0 | grep -E '^\+' | grep -Ev '^\+\+\+' || true)"
+if grep -E 'ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}' >/dev/null <<<"$added_lines"; then
     echo "sync-github: a GitHub/OpenAI/AWS-style secret is present in the staged changes; aborting. Remove it and run again." >&2
     git reset -q
     exit 1

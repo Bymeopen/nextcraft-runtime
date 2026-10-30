@@ -12,7 +12,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${HERE}/../.." && pwd)"
 GUEST_ROOT="/data/data/${APP_ID}/files/runtime/ubuntu"
 DIST_FOLDER="${REPO_ROOT}/dist/runtime-bundles"
-DEVICE_TMP_TAR="/data/local/tmp/nextcraft-dsh-stage.tar"
+# Unpredictable name: root writes this file in a directory every app can write to (no fixed path to pre-plant a link at).
+DEVICE_TMP_TAR="/data/local/tmp/nextcraft-dsh-stage-$$-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n').tar"
 
 run_adb() {
   if [[ -n "${TARGET_SERIAL}" ]]; then
@@ -45,7 +46,7 @@ trap cleanup_stage EXIT
 
 mkdir -p "${WORK_STAGE}/rootfs" "${DIST_FOLDER}"
 
-run_adb shell "su -c 'tar -cf ${DEVICE_TMP_TAR} -C ${GUEST_ROOT} usr/local/lib/dsh usr/local/bin/dsh'"
+run_adb shell "su -c 'umask 077; tar -cf ${DEVICE_TMP_TAR} -C ${GUEST_ROOT} usr/local/lib/dsh usr/local/bin/dsh'"
 run_adb exec-out "su -c 'cat ${DEVICE_TMP_TAR}'" > "${WORK_STAGE}/pulled.tar"
 tar -xf "${WORK_STAGE}/pulled.tar" -C "${WORK_STAGE}/rootfs"
 printf '%s\n' "${EXPECTED_DSH_VER}" > "${WORK_STAGE}/rootfs/.nextcraft-dsh-version"

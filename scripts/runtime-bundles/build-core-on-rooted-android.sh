@@ -43,15 +43,23 @@ temp_dir="$(mktemp -d)"
 unmount_rootfs() {
   adb_cmd shell "su -c 'for m in \$(grep \" $REMOTE/rootfs/\" /proc/mounts | cut -d\" \" -f2 | sort -r); do umount -l \"\$m\" 2>/dev/null; done'" || true
 }
-trap 'unmount_rootfs; rm -rf "$temp_dir"' EXIT
+# Unpredictable device-side name (root reads it from a directory every app can write to); removed again on exit.
+DEVICE_TAR="/data/local/tmp/nextcraft-rootfs-$$-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n').tar.gz"
+cleanup() {
+  unmount_rootfs
+  adb_cmd shell "su -c 'rm -f \"$DEVICE_TAR\"'" >/dev/null 2>&1 || true
+  rm -rf "$temp_dir"
+}
+trap cleanup EXIT
 curl -fL --retry 3 -o "$temp_dir/$ROOTFS_FILE" "$ROOTFS_URL"
 printf '%s  %s\n' "$ROOTFS_SHA256" "$temp_dir/$ROOTFS_FILE" | sha256_check
-adb_cmd push "$temp_dir/$ROOTFS_FILE" /data/local/tmp/"$ROOTFS_FILE"
+adb_cmd push "$temp_dir/$ROOTFS_FILE" "$DEVICE_TAR"
 
 unmount_rootfs
-# No plain `rm -rf` fallback: if --one-file-system is unsupported or a mount is still pinned, stop instead of
-# walking into the phone's real /dev, /proc or /sys through a leftover bind mount.
-adb_cmd shell "su -c 'rm -rf --one-file-system \"$REMOTE\" || { echo \"cannot remove $REMOTE safely (unmount leftovers first)\" >&2; exit 1; }; mkdir -p \"$REMOTE/rootfs\" \"$REMOTE/output\" && toybox tar -xzf \"/data/local/tmp/$ROOTFS_FILE\" -C \"$REMOTE/rootfs\" && rm -f \"/data/local/tmp/$ROOTFS_FILE\"'"
+# No plain `rm -rf` fallback: if a mount is still pinned, stop instead of walking into the phone's real /dev, /proc or
+# /sys through a leftover bind mount. Android's toybox rm has no --one-file-system, so find -xdev -depth -delete is used
+# (as in RootfsRepair); it fails on a non-empty mount point, and `test ! -e` then catches anything left behind.
+adb_cmd shell "su -c 'find \"$REMOTE\" -xdev -depth -delete 2>/dev/null; test ! -e \"$REMOTE\" || { echo \"cannot remove $REMOTE safely (unmount leftovers first)\" >&2; exit 1; }; mkdir -p \"$REMOTE/rootfs\" \"$REMOTE/output\" && toybox tar -xzf \"$DEVICE_TAR\" -C \"$REMOTE/rootfs\" && rm -f \"$DEVICE_TAR\"'"
 adb_cmd shell "su -c 'mount --bind /dev \"$REMOTE/rootfs/dev\" && mount --bind /dev/pts \"$REMOTE/rootfs/dev/pts\" && mount -t proc proc \"$REMOTE/rootfs/proc\" && mount -t sysfs sysfs \"$REMOTE/rootfs/sys\"'"
 
 # Run a command inside the rootfs. The command is base64-encoded so it reaches bash byte-for-byte:

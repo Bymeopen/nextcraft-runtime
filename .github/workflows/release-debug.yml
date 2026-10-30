@@ -3,8 +3,8 @@ name: Release debug build
 # Publishes the debug-signed APK (the "NextCraft Forge X" side-by-side build, shared debug key) as a rolling GitHub
 # release (never marked "latest": that stays on the signed release) together with update-manifest.json, so
 # Settings > "Periksa pembaruan aplikasi" can install it in place.
-# Runs from the Actions tab (once this file is on the default branch) or when a push to ccr-parallel-chats has
-# "[release]" in its commit message, so nothing is published by accident. One rolling release (tag dev-latest) is
+# Runs from the Actions tab (once this file is on the default branch) or when a push to main or ccr-parallel-chats
+# has "[release]" in its head commit message, so nothing is published by accident. One rolling release (tag dev-latest) is
 # replaced each time; the versionCode grows with every run, which is what the updater compares with the installed build.
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || contains(github.event.head_commit.message, '[release]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -75,6 +75,11 @@ jobs:
           for attempt in 1 2 3 4; do
             sleep 20
             id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=10" --jq "map(select(.tag_name==\"$TAG\"))[0].id")
+            if [ -z "$id" ] || [ "$id" = "null" ]; then
+              echo "No release with tag $TAG found yet (attempt $attempt)"
+              draft=true
+              continue
+            fi
             draft=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq .draft)
             if [ "$draft" = "false" ]; then break; fi
             echo "Release $id is a draft (attempt $attempt); publishing it again"
