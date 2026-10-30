@@ -161,7 +161,7 @@ internal suspend fun RuntimeInstaller.extractZstdTar(
                     currentEntry.isFile -> {
                         target.parentFile?.mkdirs()
                         if (java.nio.file.Files.isSymbolicLink(target.toPath())) target.delete()
-                        openForWrite(target).use { output -> tar.copyTo(output) }
+                        writeEntryAtomically(target) { output -> tar.copyTo(output) }
                         runCatching { Os.chmod(target.absolutePath, currentEntry.mode and 0b111111111) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
                     }
                 }
@@ -240,6 +240,22 @@ internal fun RuntimeInstaller.extractNodeArchive(archive: File, destination: Fil
         if (!java.nio.file.Files.isSymbolicLink(target.toPath())) {
             runCatching { Os.chmod(target.absolutePath, Os.stat(linkTarget.absolutePath).st_mode and 0b111111111) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
         }
+    }
+}
+
+/**
+ * Writes [target] through a sibling temp file and renames it into place. Opening a running executable for writing
+ * (O_TRUNC) fails with ETXTBSY, e.g. /usr/bin/python3.12 while an agent hook is using it; rename() swaps the inode
+ * and leaves the running process on the old one. A crash mid-write also never leaves a truncated binary behind.
+ */
+internal fun RuntimeInstaller.writeEntryAtomically(target: File, write: (FileOutputStream) -> Unit) {
+    val temp = File(target.parentFile, ".${target.name}.nextcraft-new")
+    try {
+        openForWrite(temp).use(write)
+        Os.rename(temp.absolutePath, target.absolutePath)
+    } catch (e: Throwable) {
+        temp.delete()
+        throw e
     }
 }
 
