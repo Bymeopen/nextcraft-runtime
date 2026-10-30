@@ -171,6 +171,12 @@ mount_dynamic_bind() {
 
 # Two launches at once (an agent plus a diagnostic) would both see a mount point as free and stack the
 # mounts; the second /apex then has no modules. Serialize the mount phase; fd 9 is closed before the chroot.
+# A guest-planted symlink at the lock path must not be followed as root; a failed `exec 9>` would exit silently.
+[ -L "$ROOTFS/.nextcraft-mount.lock" ] && rm -f "$ROOTFS/.nextcraft-mount.lock"
+if ! ( : >> "$ROOTFS/.nextcraft-mount.lock" ) 2>/dev/null; then
+    echo "Cannot create the mount lock file in $ROOTFS" >&2
+    exit 1
+fi
 exec 9>"$ROOTFS/.nextcraft-mount.lock"
 flock 9 2>/dev/null || busybox flock 9 2>/dev/null || true
 # The app is repairing or replacing the rootfs (RootfsRepair): mounting now could pin directories it is removing.
@@ -221,13 +227,14 @@ mount_once "sysfs" "$ROOTFS/sys" "sysfs" "rw,nosuid,nodev,noexec"
 TMP_MB="${NEXTCRAFT_TMP_MB:-512}"
 SHM_MB="${NEXTCRAFT_SHM_MB:-256}"
 mount_once "tmpfs" "$ROOTFS/tmp" "tmpfs" "rw,nosuid,nodev,mode=1777,size=${TMP_MB}M"
-mount_once "tmpfs" "$ROOTFS/dev/shm" "tmpfs" "rw,nosuid,nodev,mode=1777,size=${SHM_MB}M"
-if [ ! -e "$ROOTFS/dev/fd" ]; then
-    ln -sf /proc/self/fd "$ROOTFS/dev/fd" 2>/dev/null || true
+# Same guard as above: never create /dev/shm or symlinks inside a leftover full host /dev bind.
+if [ "$(dev_fstype "$ROOTFS/dev")" = "tmpfs" ]; then
+    mount_once "tmpfs" "$ROOTFS/dev/shm" "tmpfs" "rw,nosuid,nodev,mode=1777,size=${SHM_MB}M"
+    [ -e "$ROOTFS/dev/fd" ] || ln -sf /proc/self/fd "$ROOTFS/dev/fd" 2>/dev/null || true
+    [ -e "$ROOTFS/dev/stdin" ] || ln -sf /proc/self/fd/0 "$ROOTFS/dev/stdin" 2>/dev/null || true
+    [ -e "$ROOTFS/dev/stdout" ] || ln -sf /proc/self/fd/1 "$ROOTFS/dev/stdout" 2>/dev/null || true
+    [ -e "$ROOTFS/dev/stderr" ] || ln -sf /proc/self/fd/2 "$ROOTFS/dev/stderr" 2>/dev/null || true
 fi
-[ ! -e "$ROOTFS/dev/stdin" ] && ln -sf /proc/self/fd/0 "$ROOTFS/dev/stdin" 2>/dev/null || true
-[ ! -e "$ROOTFS/dev/stdout" ] && ln -sf /proc/self/fd/1 "$ROOTFS/dev/stdout" 2>/dev/null || true
-[ ! -e "$ROOTFS/dev/stderr" ] && ln -sf /proc/self/fd/2 "$ROOTFS/dev/stderr" 2>/dev/null || true
 
 for bionic_dir in /system /apex /vendor /product /system_ext /odm; do
     if [ -d "$bionic_dir" ]; then
@@ -291,12 +298,19 @@ for resp_dir in nextcraft-bridge-responses pocketdev-bridge-responses; do
 done
 
 # Resolvers for a guest without /etc/resolv.conf; override with NEXTCRAFT_DNS="ip ip ..." (space-separated).
+# Only an empty or dangling resolv.conf is rewritten (a symlink with content is left alone). A dangling link is
+# replaced by a regular file: rm -f removes the link itself, never its target, so a guest-controlled link cannot
+# redirect these root writes. The writes run in a subshell so a failure cannot end the supervisor (a failed
+# redirect on the `:` special builtin exits a non-interactive shell).
 if [ ! -s "$ROOTFS/etc/resolv.conf" ]; then
-    mkdir -p "$ROOTFS/etc"
-    : > "$ROOTFS/etc/resolv.conf"
-    for ns in ${NEXTCRAFT_DNS:-8.8.8.8 1.1.1.1}; do
-        printf "nameserver %s\n" "$ns" >> "$ROOTFS/etc/resolv.conf"
-    done
+    [ -L "$ROOTFS/etc" ] || mkdir -p "$ROOTFS/etc" 2>/dev/null || true
+    [ -L "$ROOTFS/etc/resolv.conf" ] && rm -f "$ROOTFS/etc/resolv.conf"
+    (
+        : > "$ROOTFS/etc/resolv.conf"
+        for ns in ${NEXTCRAFT_DNS:-8.8.8.8 1.1.1.1}; do
+            printf "nameserver %s\n" "$ns" >> "$ROOTFS/etc/resolv.conf"
+        done
+    ) 2>/dev/null || echo "Could not write $ROOTFS/etc/resolv.conf; DNS may not work in the guest." >&2
 fi
 
 fix_workspace_ownership() {
@@ -400,6 +414,9 @@ exec 3<&0
 STOPPED=""
 forward_signal() {
     STOPPED=1
+    # A background job of a non-interactive shell starts with SIGINT ignored, and that survives exec (a trap
+    # cannot re-enable it), so INT would never reach the guest: a cancel is delivered as TERM instead.
+    [ "$1" = INT ] && set -- TERM
     if [ -n "$SETSID" ]; then
         kill "-$1" -- "-$child" 2>/dev/null || true
     else
