@@ -58,10 +58,17 @@ sealed interface ScheduleDirective {
 
 /**
  * Reads `[[schedule: 30m | check the build and report]]` and `[[unschedule]]` from an agent reply. Anything that does not
- * parse (bad interval, empty prompt) is ignored, so a reply can never create a broken task.
+ * parse (bad interval, empty prompt) is ignored, so a reply can never create a broken task. A schedule directive only
+ * counts when it stands alone on its own line outside a code fence and its prompt has real text: a reply that merely
+ * quotes the syntax (inline, in a bullet, or with a placeholder like `...`) must not start a recurring task.
  */
 object ScheduleDirectives {
-    private val SCHEDULE = Regex("""\[\[\s*schedule\s*:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]""", RegexOption.IGNORE_CASE)
+    private val SCHEDULE = Regex(
+        """^[ \t]*\[\[\s*schedule\s*:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\][ \t]*$""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE),
+    )
+    private val CODE_FENCE = Regex("(?s)```.*?```")
+    private val HAS_TEXT = Regex("[\\p{L}\\p{N}]")
     private val UNSCHEDULE = Regex("""\[\[\s*unschedule\s*\]\]""", RegexOption.IGNORE_CASE)
 
     private val KEYWORDS = Regex(
@@ -75,12 +82,15 @@ object ScheduleDirectives {
 
     fun parse(reply: String): List<ScheduleDirective> {
         val found = mutableListOf<Pair<Int, ScheduleDirective>>()
-        SCHEDULE.findAll(reply).forEach { m ->
+        val text = CODE_FENCE.replace(reply, "")
+        SCHEDULE.findAll(text).forEach { m ->
             val minutes = ScheduleRules.parseInterval(m.groupValues[1]) ?: return@forEach
             val prompt = m.groupValues[2].trim().take(ScheduleRules.MAX_PROMPT_LENGTH)
-            if (prompt.isNotEmpty()) found += m.range.first to ScheduleDirective.Schedule(minutes, prompt)
+            // A prompt of only punctuation ("...") or an unfilled `<placeholder>` is the syntax being quoted, not a task.
+            val isPlaceholder = prompt.startsWith("<") && prompt.endsWith(">")
+            if (HAS_TEXT.containsMatchIn(prompt) && !isPlaceholder) found += m.range.first to ScheduleDirective.Schedule(minutes, prompt)
         }
-        UNSCHEDULE.findAll(reply).forEach { found += it.range.first to ScheduleDirective.Unschedule }
+        UNSCHEDULE.findAll(text).forEach { found += it.range.first to ScheduleDirective.Unschedule }
         return found.sortedBy { it.first }.map { it.second }
     }
 
