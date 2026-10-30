@@ -210,7 +210,15 @@ internal val CHROOT_EXEC_SCRIPT = """
         [ -e "${'$'}src" ] || return 0
         is_mounted "${'$'}dst" && return 0
         if [ -d "${'$'}src" ]; then mkdir -p "${'$'}dst"; else ( : > "${'$'}dst" ) 2>/dev/null || return 0; fi
-        mount -o bind "${'$'}src" "${'$'}dst" 2>/dev/null || return 0
+        if ! mount -o bind "${'$'}src" "${'$'}dst" 2>/dev/null; then
+            # A failed bind leaves the empty placeholder file: /dev/urandom then reads 0 bytes and the JVM (Gradle) cannot
+            # start. Recreate a character device node from the host's major/minor instead.
+            if [ -c "${'$'}src" ]; then
+                rm -f "${'$'}dst" 2>/dev/null
+                mknod -m 666 "${'$'}dst" c "${'$'}((0x${'$'}(stat -c %t "${'$'}src")))" "${'$'}((0x${'$'}(stat -c %T "${'$'}src")))" 2>/dev/null || true
+            fi
+            return 0
+        fi
         [ "${'$'}mode" = "ro" ] && mount -o remount,bind,ro "${'$'}dst" 2>/dev/null
         return 0
     }

@@ -147,14 +147,7 @@ internal suspend fun RuntimeInstaller.extractZstdTar(
                             linkName = currentEntry.linkName,
                             errorMessage = "Archive symlink escapes runtime",
                         )
-                        if (target.exists() || java.nio.file.Files.isSymbolicLink(target.toPath())) {
-                            if (target.isDirectory && !java.nio.file.Files.isSymbolicLink(target.toPath())) {
-                                target.deleteRecursively()
-                            } else {
-                                target.delete()
-                            }
-                        }
-                        Os.symlink(currentEntry.linkName, target.absolutePath)
+                        replaceWithSymlink(currentEntry.linkName, target)
                     }
                     currentEntry.isLink -> {
                         target.parentFile?.mkdirs()
@@ -215,8 +208,7 @@ internal fun RuntimeInstaller.extractNodeArchive(archive: File, destination: Fil
                             linkName = currentEntry.linkName,
                             errorMessage = "Archive symlink escapes runtime",
                         )
-                        if (target.exists() || java.nio.file.Files.isSymbolicLink(target.toPath())) target.delete()
-                        Os.symlink(currentEntry.linkName, target.absolutePath)
+                        replaceWithSymlink(currentEntry.linkName, target)
                     }
                     currentEntry.isLink -> {
                         val relativeLink = currentEntry.linkName.removePrefix("./").substringAfter('/', "").trimEnd('/')
@@ -249,6 +241,24 @@ internal fun RuntimeInstaller.extractNodeArchive(archive: File, destination: Fil
             runCatching { Os.chmod(target.absolutePath, Os.stat(linkTarget.absolutePath).st_mode and 0b111111111) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
         }
     }
+}
+
+/**
+ * Replaces whatever sits at [target] with a symlink. A previous attempt unpacks straight into the live rootfs, so the
+ * old entry can be root-owned or a non-empty directory; a silent failed delete would surface as `symlink failed: EEXIST`.
+ */
+internal fun RuntimeInstaller.replaceWithSymlink(linkName: String, target: File) {
+    val path = target.toPath()
+    fun present() = java.nio.file.Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+    if (present()) {
+        target.deleteRecursivelyNoFollow()
+        if (present()) {
+            val parent = target.parentFile
+            if (parent != null && !parent.canWrite()) RootfsRepair.reclaimOwnership(parent, AndroidProcess.myUid(), recursive = false)
+            target.deleteRecursivelyNoFollow()
+        }
+    }
+    Os.symlink(linkName, target.absolutePath)
 }
 
 internal fun RuntimeInstaller.linkOrCopyFile(source: File, destination: File) {
