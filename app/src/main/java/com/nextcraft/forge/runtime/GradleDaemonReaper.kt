@@ -8,19 +8,20 @@ import java.util.concurrent.TimeUnit
 /**
  * Stops idle Gradle daemons in the chroot when Android runs short of memory. A warm daemon holds the device-sized heap
  * (3 GB on 10 GB+ phones) for its 10-minute idle timeout; under pressure Android would rather kill this app than a
- * root process, so the daemon goes first. A daemon that used CPU in the last second is building and is left alone.
+ * root process, so the daemon goes first. A daemon that used CPU in the last seconds, or has live children, is building and is left alone.
  */
 internal object GradleDaemonReaper {
     /**
-     * Kills each GradleDaemon whose user+system CPU time did not move over one second. The bracketed pattern keeps
+     * Kills each GradleDaemon whose user+system CPU time did not move over five seconds and that has no child process
+     * (a forked test worker, aapt2 or compiler daemon means it is busy waiting without using CPU itself). The bracketed pattern keeps
      * pgrep from matching this script's own command line (which contains the pattern text). Only Gradle daemons are
      * matched: an agent turn waiting on the network also has a zero CPU delta and must not be reaped.
      */
     internal const val STOP_IDLE_SCRIPT =
         "for p in \$(pgrep -f 'org[.]gradle[.]launcher[.]daemon[.]bootstrap[.]GradleDaemon' 2>/dev/null); do " +
-            "a=\$(cut -d' ' -f14,15 /proc/\$p/stat 2>/dev/null); sleep 1; " +
+            "a=\$(cut -d' ' -f14,15 /proc/\$p/stat 2>/dev/null); sleep 5; " +
             "b=\$(cut -d' ' -f14,15 /proc/\$p/stat 2>/dev/null); " +
-            "[ -n \"\$a\" ] && [ \"\$a\" = \"\$b\" ] && kill \$p; done; " +
+            "[ -n \"\$a\" ] && [ \"\$a\" = \"\$b\" ] && [ -z \"\$(pgrep -P \$p 2>/dev/null)\" ] && kill \$p; done; " +
             "sync 2>/dev/null || true; " +
             "echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true"
 

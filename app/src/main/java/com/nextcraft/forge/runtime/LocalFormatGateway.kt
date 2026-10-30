@@ -343,13 +343,19 @@ internal class LocalFormatGateway(
         val calls = message.optJSONArray("tool_calls") ?: JSONArray()
         val finishReason = source.optJSONArray("choices")?.optJSONObject(0)?.stringOrEmpty("finish_reason").orEmpty()
         val cutOff = finishReason == "length"
+        var validCalls = 0
         for (index in 0 until calls.length()) {
             val call = calls.getJSONObject(index)
             val function = call.optJSONObject("function") ?: JSONObject()
             val parsedArguments = runCatching { JSONObject(function.stringOrEmpty("arguments", "{}")) }.getOrNull()
-            // A call cut off by the token limit has partial arguments; running it would act on invalid input.
-            if (parsedArguments == null && cutOff) continue
-            val arguments = parsedArguments ?: JSONObject()
+            // Never run a call whose arguments did not parse (cut off by the token limit or malformed): `{}` would act on
+            // invalid input. The model is told in a text block instead.
+            if (parsedArguments == null) {
+                if (!cutOff) content.put(JSONObject().put("type", "text").put("text", malformedToolCallNotice(function.stringOrEmpty("name"))))
+                continue
+            }
+            validCalls++
+            val arguments = parsedArguments
             content.put(
                 JSONObject().put("type", "tool_use")
                     .put("id", call.stringOrEmpty("id").ifBlank { "tool_${UUID.randomUUID()}" })
@@ -360,7 +366,7 @@ internal class LocalFormatGateway(
         val usage = source.optJSONObject("usage") ?: JSONObject()
         val stopReason = when {
             cutOff -> "max_tokens"
-            calls.length() > 0 -> "tool_use"
+            validCalls > 0 -> "tool_use"
             // Reported as a normal end_turn, a filtered answer looked complete; Anthropic calls this a refusal.
             finishReason == "content_filter" -> "refusal"
             else -> "end_turn"
@@ -376,6 +382,7 @@ internal class LocalFormatGateway(
         val output = source.optJSONArray("output") ?: JSONArray()
         val content = JSONArray()
         var hasToolUse = false
+        val incomplete = source.stringOrEmpty("status") == "incomplete"
         for (index in 0 until output.length()) {
             val item = output.optJSONObject(index) ?: continue
             when (item.stringOrEmpty("type")) {
@@ -385,8 +392,14 @@ internal class LocalFormatGateway(
                     if (text.isNotBlank()) content.put(JSONObject().put("type", "text").put("text", text))
                 }
                 "function_call" -> {
+                    // An incomplete response may carry a half-written call: treat it as truncated, never execute it.
+                    if (incomplete) continue
+                    val arguments = runCatching { JSONObject(item.stringOrEmpty("arguments", "{}")) }.getOrNull()
+                    if (arguments == null) {
+                        content.put(JSONObject().put("type", "text").put("text", malformedToolCallNotice(item.stringOrEmpty("name"))))
+                        continue
+                    }
                     hasToolUse = true
-                    val arguments = runCatching { JSONObject(item.stringOrEmpty("arguments", "{}")) }.getOrDefault(JSONObject())
                     val callId = item.stringOrEmpty("call_id").ifBlank { item.stringOrEmpty("id") }.ifBlank { "tool_${UUID.randomUUID()}" }
                     content.put(
                         JSONObject().put("type", "tool_use")
@@ -962,6 +975,10 @@ private class PendingToolCall {
     var name = ""
     val arguments = StringBuilder()
 }
+
+/** Text the model sees in place of a tool call whose JSON arguments could not be parsed. */
+private fun malformedToolCallNotice(name: String): String =
+    "Error: the call to tool '${name.ifBlank { "unknown" }}' was skipped because its arguments were not valid JSON. Call it again with valid arguments."
 
 /** Anthropic stop_reason for an OpenAI Responses API result. */
 private fun responsesStopReason(source: JSONObject, hasToolUse: Boolean): String {

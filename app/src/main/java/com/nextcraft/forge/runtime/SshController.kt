@@ -55,6 +55,9 @@ class SshController(
     private val tunnelProcesses = java.util.concurrent.ConcurrentHashMap<String, Process>()
     /** Hosts whose tunnel is being started: a second tap before the process exists must not start another one. */
     private val tunnelStarting = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** Stop pressed while the tunnel process was still being spawned: startTunnel stops it as soon as it exists. */
+    private val tunnelStopRequested = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var job: Job? = null
 
     private fun workspace() = runner.toolWorkspace(SLUG)
@@ -125,6 +128,7 @@ class SshController(
 
     fun startTunnel(host: SshHost) {
         if (host.forward.isEmpty() || tunnelProcesses.containsKey(host.id) || !tunnelStarting.add(host.id)) return
+        tunnelStopRequested.remove(host.id)
         scope.launch {
             val command = "${sshBase(host)} -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L ${ChrootRunner.quote(host.forward)} ${target(host)}"
             val process = runCatching { runner.start(workspace(), SLUG, command) }.getOrElse { error ->
@@ -132,8 +136,13 @@ class SshController(
                 mutable.update { it.copy(log = append(it.log, "✕ ${error.message}\n")) }
                 return@launch
             }
-            tunnelProcesses[host.id] = process
             tunnelStarting.remove(host.id)
+            if (tunnelStopRequested.remove(host.id)) {
+                runner.stop(process)
+                runner.release(process)
+                return@launch
+            }
+            tunnelProcesses[host.id] = process
             mutable.update { it.copy(tunnels = it.tunnels + host.id, log = append(it.log, "▶ Tunnel ${host.forward} via ${host.alias}\n")) }
             runCatching {
                 process.inputStream.bufferedReader().use { reader ->
@@ -156,17 +165,25 @@ class SshController(
     }
 
     fun stopTunnel(id: String) {
-        val process = tunnelProcesses.remove(id) ?: return
+        val process = tunnelProcesses.remove(id)
+        if (process == null) {
+            if (tunnelStarting.contains(id)) tunnelStopRequested.add(id)
+            return
+        }
         runner.stop(process)
         // Killing the su wrapper does not always reach the ssh client inside the chroot; stop it there as well.
-        val forward = mutable.value.hosts.firstOrNull { it.id == id }?.forward.orEmpty()
-        if (forward.isNotEmpty()) {
+        val host = mutable.value.hosts.firstOrNull { it.id == id }
+        val forward = host?.forward.orEmpty()
+        if (host != null && forward.isNotEmpty()) {
             scope.launch {
                 // "[s]sh" keeps pkill from matching this very shell command line.
                 // pkill takes a POSIX ERE: Regex.escape's \Q..\E is Java-only and never matched. The forward only
                 // holds [A-Za-z0-9._:-] (SSH_FORWARD), so escaping the dot is enough.
                 val escapedForward = forward.replace(".", "\\.")
-                runCatching { runner.run(workspace(), SLUG, "pkill -f ${ChrootRunner.quote("[s]sh .* -N .*-L $escapedForward ")} || true", timeoutMillis = 15_000L) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("SshController", it) }
+                // The command line ends with user@host, so another tunnel with the same forward spec is not matched;
+                // everything outside [A-Za-z0-9_@-] is backslash-escaped for the ERE.
+                val escapedTarget = target(host).replace(Regex("[^A-Za-z0-9_@-]")) { "\\" + it.value }
+                runCatching { runner.run(workspace(), SLUG, "pkill -f ${ChrootRunner.quote("[s]sh .* -N .*-L $escapedForward $escapedTarget\$")} || true", timeoutMillis = 15_000L) }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("SshController", it) }
             }
         }
     }

@@ -115,9 +115,17 @@ object AndroidAppInstaller {
         val proc = ProcessBuilder("su", "-c", "pm install -r -S $sizeBytes")
             .redirectErrorStream(true)
             .start()
+        var watchdog: Thread? = null
         try {
             // Drain stdout concurrently: pm may write before all of stdin is consumed and a full pipe would deadlock.
             val output = StringBuilder()
+            // Bound the whole operation: a hung su would block in copyTo for ever, so the watchdog kills it, which fails the write.
+            watchdog = Thread({
+                try {
+                    if (!proc.waitFor(INSTALL_TOTAL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) proc.destroyForcibly()
+                } catch (_: InterruptedException) {
+                }
+            }, "forge-pm-install-watchdog").apply { isDaemon = true; start() }
             val reader = Thread({
                 runCatching { proc.inputStream.bufferedReader().use { output.append(it.readText()) } }
             }, "forge-pm-install-stdout").apply { isDaemon = true; start() }
@@ -134,6 +142,7 @@ object AndroidAppInstaller {
             reader.join(5_000L)
             proc.exitValue() == 0 && output.contains("Success", ignoreCase = true)
         } finally {
+            watchdog?.interrupt()
             if (proc.isAlive) proc.destroyForcibly()
         }
     }.getOrDefault(false)
@@ -283,6 +292,7 @@ object AndroidAppInstaller {
     }
 
     private const val PREFERENCES = "installed_android_apks"
+    private const val INSTALL_TOTAL_TIMEOUT_SECONDS = 180L
 
     private fun isMiuiDevice(): Boolean = Build.MANUFACTURER.lowercase(Locale.US) in
         setOf("xiaomi", "redmi", "poco")

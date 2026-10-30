@@ -329,12 +329,12 @@ class BuildMatrixController(
 internal data class MatrixStep(val target: BuildTarget, val ids: List<String>)
 
 /**
- * The selected targets in run order, with the detected Gradle tasks (except clean, which must run alone) merged into
+ * The selected targets in run order, with the detected Gradle tasks (except clean and screenshots, which carry their own flags and must run alone) merged into
  * one Gradle invocation at the place of the first: Gradle start-up and configuration take minutes on a phone, so
  * paying them once instead of once per task is most of the time saved.
  */
 internal fun withGradleBatched(workspace: File, selected: List<BuildTarget>): List<MatrixStep> {
-    val gradle = selected.filter { it.detected && it.id.startsWith("gradle:") && it.id != "gradle:clean" }
+    val gradle = selected.filter { it.detected && it.id.startsWith("gradle:") && it.id != "gradle:clean" && it.id != "gradle:screenshots" }
     val root = if (gradle.size < 2) null else findAndroidProjectRoot(workspace)
     if (root == null) return selected.map { MatrixStep(it, listOf(it.id)) }
     val relative = root.relativeTo(workspace).invariantSeparatorsPath

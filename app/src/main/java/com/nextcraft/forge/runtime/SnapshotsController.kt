@@ -1,6 +1,7 @@
 package com.nextcraft.forge.runtime
 
 import com.nextcraft.forge.ui.UiText
+import com.nextcraft.forge.ui.UiTextException
 import com.nextcraft.forge.ui.toUiText
 import com.nextcraft.forge.R
 import android.content.Context
@@ -74,7 +75,10 @@ class SnapshotsController(
         }
     }
 
-    fun delete(snapshot: WorkspaceSnapshot) = task(UiText.res(R.string.rt_snap_deleted)) { manager.delete(snapshot) }
+    fun delete(snapshot: WorkspaceSnapshot) = task(UiText.res(R.string.rt_snap_deleted)) {
+        // delete() reports failure as false; without this the UI said "deleted" regardless.
+        if (!manager.delete(snapshot)) throw UiTextException(UiText.res(R.string.rt_snap_failed))
+    }
 
     private fun task(
         success: UiText,

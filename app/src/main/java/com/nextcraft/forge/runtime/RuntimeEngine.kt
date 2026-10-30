@@ -19,12 +19,23 @@ object RuntimeEngines {
     @Volatile
     private var detectionDone = false
 
+    /** Monotonic ms of the last probe that found no root; a null result is only trusted for [RETRY_AFTER_MS]. */
+    @Volatile
+    private var failedAtMs = 0L
+
+    private const val RETRY_AFTER_MS = 20_000L
+
     /** [RuntimeEngine.CHROOT] when root was granted; `null` means nothing can run. */
     fun detect(context: Context, rootTimeoutSeconds: Long = 8L, refresh: Boolean = false): RuntimeEngine? {
-        if (detectionDone && !refresh) return detected
+        if (detectionDone && !refresh) {
+            // A granted result is cached for the process; a denied/timed-out one is re-probed after a cool-down
+            // (the root dialog may simply not have been answered within the timeout).
+            if (detected != null || (System.nanoTime() / 1_000_000L) - failedAtMs < RETRY_AFTER_MS) return detected
+        }
         val engine = RuntimeEngine.CHROOT.takeIf { isRootAccessAvailable(rootTimeoutSeconds) }
         detected = engine
         detectionDone = true
+        if (engine == null) failedAtMs = (System.nanoTime() / 1_000_000L)
         return engine
     }
 

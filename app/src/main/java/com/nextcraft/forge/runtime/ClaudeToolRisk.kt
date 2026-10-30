@@ -50,7 +50,8 @@ private val DANGEROUS_PATTERNS = listOf(
 )
 
 private val SAFE_STREAM_REDIRECT_REGEX =
-    Regex("(?:[12]?>>?\\s*/dev/null|&>\\s*/dev/null|[12]>&[12]|<\\s*/dev/null)")
+    // The lookahead keeps `>/dev/nullfoo` (a real file write) from being reduced to a harmless redirect.
+    Regex("(?:[12]?>>?\\s*/dev/null(?![\\w./-])|&>\\s*/dev/null(?![\\w./-])|[12]>&[12]|<\\s*/dev/null(?![\\w./-]))")
 
 // Commands whose first word is auto-approved; everything else (python, node, sh, find -exec ...) needs the user.
 private val SAFE_BASH_COMMANDS = setOf(
@@ -74,6 +75,8 @@ private val JQ_ENV_REGEX = Regex("""\benv\b|[$]ENV|\binput_filename\b""")
 
 // A shell variable expansion can print an exported secret (`echo "$ANTHROPIC_API_KEY"`); those commands need the user.
 private val VARIABLE_EXPANSION_REGEX = Regex("""\$[A-Za-z_{@*#?0-9!-]""")
+
+private val ANSI_C_STRING_REGEX = Regex("""\$['"][^'"]*\\""")
 
 private fun scriptCanEscapeSandbox(text: String): Boolean =
     (JQ_WORD_REGEX.containsMatchIn(text) && JQ_ENV_REGEX.containsMatchIn(text)) ||
@@ -109,6 +112,16 @@ private val SAFE_GIT_SUBCOMMANDS = setOf(
     "status", "diff", "log", "show", "add", "commit", "branch", "rev-parse", "ls-files", "ls-tree", "blame",
     "remote", "fetch", "pull", "stash", "restore", "switch", "tag",
 )
+/** The forms of restore/switch/stash that throw away uncommitted work, like the already blocked `checkout --`, `reset`, `clean`. */
+private fun gitSubcommandDiscardsWork(sub: String, rest: List<String>): Boolean = when (sub) {
+    // `restore` overwrites the working tree unless it only unstages (--staged without --worktree).
+    "restore" -> !(rest.any { it == "--staged" || it == "-S" } && rest.none { it == "--worktree" || it == "-W" })
+    "switch" -> rest.any { it == "-f" || it == "--force" || it == "--discard-changes" }
+    "stash" -> rest.firstOrNull() in setOf("drop", "clear") ||
+        rest.any { it == "-u" || it == "--include-untracked" || it == "-a" || it == "--all" }
+    else -> false
+}
+
 private val SENSITIVE_PATH_PREFIXES = listOf(
     "/opt/", "/etc/", "/proc/", "/sys/", "/dev/", "/usr/", "/bin", "/sbin", "/lib", "/var/",
     "/pocketdev-bridge", "/nextcraft-bridge", "/pocket-bridge",
@@ -237,7 +250,11 @@ private fun isSafeBashSegment(segment: String): Boolean {
     // `date -s` sets the system clock.
     if (first == "date" && args.any { it.shortFlagCluster().contains('s') || it.startsWith("--set") }) return false
     if (mutatesFiles(first, words) && words.drop(1).any(::isOutsideWorkspacePath)) return false
-    if (first == "git") return words.getOrNull(1)?.trim('\'', '"') in SAFE_GIT_SUBCOMMANDS
+    if (first == "git") {
+        val sub = words.getOrNull(1)?.trim('\'', '"')
+        if (sub !in SAFE_GIT_SUBCOMMANDS) return false
+        return !gitSubcommandDiscardsWork(sub.orEmpty(), args.drop(1))
+    }
     if (first == "find" && words.any { it.trim('\'', '"') in setOf("-exec", "-execdir", "-delete", "-ok", "-okdir") }) return false
     return first in SAFE_BASH_COMMANDS
 }
@@ -266,7 +283,16 @@ internal fun classifyToolRisk(tool: String, command: String?, paths: List<String
                 scriptCanEscapeSandbox(text)
             val masked = maskQuotedAndEscapedSeparators(text)
             val segments = masked.split(Regex("&&|\\|\\||[;|&]")).filter(String::isNotBlank)
-            if (text.isBlank() || hasUnsafeSyntax || segments.isEmpty() || !segments.all(::isSafeBashSegment)) {
+            // `cd / && cat proc/self/environ` or `cd ~ && cat .config/gh/hosts.yml`: the path patterns need a leading `/`, so
+            // a cd out of the project makes every later relative path undecidable. A bare cd/`cd -` leaves it too.
+            val cdLeavesProject = segments.any { seg ->
+                val w = seg.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+                (w.firstOrNull()?.trim('\'', '"') in setOf("cd", "pushd")) &&
+                    w.drop(1).filterNot { it.startsWith("-") && it != "-" }.let { a -> a.isEmpty() || a.any { it == "-" || isOutsideWorkspacePath(it) } }
+            }
+            // ANSI-C `$'\x2fproc'` and locale `$"..."` strings hide a path behind escapes the pattern scan cannot see.
+            val hasEscapedString = ANSI_C_STRING_REGEX.containsMatchIn(text)
+            if (text.isBlank() || hasUnsafeSyntax || cdLeavesProject || hasEscapedString || segments.isEmpty() || !segments.all(::isSafeBashSegment)) {
                 RiskLevel.HIGH
             } else {
                 RiskLevel.REVIEW

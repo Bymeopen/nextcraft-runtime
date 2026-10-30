@@ -395,10 +395,13 @@ internal data class SavedConversation(
 
 internal fun List<ChatMessage>.usefulForAgent(): List<ChatMessage> = filter { m ->
     val t = m.text
-    (m.fromUser || !t.startsWith("Hi! Tell me")) &&
-        !t.startsWith("Failed to") &&
-        !t.startsWith("Error:") &&
-        !t.contains("API Error")
+    // The error/greeting filters target assistant and system lines only: a user's own message is always kept.
+    m.fromUser || (
+        !t.startsWith("Hi! Tell me") &&
+            !t.startsWith("Failed to") &&
+            !t.startsWith("Error:") &&
+            !t.contains("API Error")
+        )
 }
 
 internal fun List<ChatMessage>.unseenBy(saved: SavedConversation?): List<ChatMessage> {

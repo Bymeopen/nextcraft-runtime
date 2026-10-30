@@ -25,6 +25,14 @@ class WorkspaceCheckpointsTest {
     }
 
     @Test
+    fun buildOutputDirsAreIgnoredButFilesNamedBuildAreTracked() {
+        val checkpoints = WorkspaceCheckpoints(temp.newFolder("files"))
+        assertTrue(checkpoints.isInternalRuntimePath("app/build/outputs/app.apk"))
+        assertFalse(checkpoints.isInternalRuntimePath("build"))
+        assertFalse(checkpoints.isInternalRuntimePath("scripts/build"))
+    }
+
+    @Test
     fun unreadableFileDoesNotAbortSnapshotOrCheckpoint() {
         val ws = workspace()
         // Same shape as the failing case: a root-owned file the app (another uid) cannot open, outside any ignored folder.

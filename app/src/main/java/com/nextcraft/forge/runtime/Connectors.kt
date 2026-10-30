@@ -313,6 +313,7 @@ class ConnectorStore(context: Context) {
     fun upsert(connector: McpConnector, secret: String?) {
         val others = list().filterNot { it.id == connector.id }
         save(others + connector)
+        if (connector.id == "github") prefs.edit { remove(KEY_GITHUB_REMOVED) }
         when {
             secret == null -> Unit
             secret.isBlank() -> vault.remove(vaultId(connector.id))
@@ -324,6 +325,11 @@ class ConnectorStore(context: Context) {
 
     fun delete(id: String) {
         save(list().filterNot { it.id == id })
+        // Remember an explicit removal (for this token) so syncGitHubConnector does not re-create the connector.
+        if (id == "github") {
+            val token = vault.get("GITHUB_TOKEN")?.trim().orEmpty()
+            if (token.isNotEmpty()) prefs.edit { putInt(KEY_GITHUB_REMOVED, token.hashCode()) }
+        }
         vault.remove(vaultId(id))
     }
 
@@ -336,6 +342,8 @@ class ConnectorStore(context: Context) {
     fun syncGitHubConnector() {
         val ghToken = vault.get("GITHUB_TOKEN")?.trim().orEmpty()
         if (ghToken.isEmpty()) return
+        // The user removed the connector for this token; a different (new) token re-enables auto-provisioning.
+        if (prefs.contains(KEY_GITHUB_REMOVED) && prefs.getInt(KEY_GITHUB_REMOVED, 0) == ghToken.hashCode()) return
         val current = rawList()
         if (current.none { it.id == "github" }) {
             save(
@@ -397,6 +405,7 @@ class ConnectorStore(context: Context) {
     private companion object {
         const val KEY_LIST = "connectors"
         const val KEY_DEFAULTS_SEEDED = "connectors_defaults_seeded_v1"
+        const val KEY_GITHUB_REMOVED = "github_connector_removed_token"
     }
 }
 

@@ -32,7 +32,7 @@ import org.json.JSONObject
 internal fun antigravityFriendlyError(
     raw: String,
     diagnostic: String = "",
-    elapsedMs: Long = Long.MAX_VALUE,
+    elapsedMs: Long = 0L, // unknown: the 60-minute message needs a real, large elapsed time
 ): String {
     val normalizedRaw = raw.replace(Regex("\\s+"), " ").trim()
     val hitTurnCeiling = elapsedMs >= AGY_TURN_LIMIT_MS - 5 * 60_000L

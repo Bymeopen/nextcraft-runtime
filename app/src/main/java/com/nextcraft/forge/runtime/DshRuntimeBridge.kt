@@ -187,7 +187,7 @@ class DshRuntimeBridge(
         }
         runCatching { openRouterGateway?.close() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("DshRuntimeBridge", it) }
         runCatching { spawnedOutputFile?.delete() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("DshRuntimeBridge", it) }
-        runCatching { sessionHomeHostDir?.deleteRecursively() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("DshRuntimeBridge", it) }
+        runCatching { sessionHomeHostDir?.deleteRecursivelyNoFollowOrRoot() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("DshRuntimeBridge", it) }
         activeProcess = null
         activeSessionId = null
         RuntimeTaskController.release(stopHandler)

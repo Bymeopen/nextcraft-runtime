@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 data class ReaState(
@@ -97,7 +98,7 @@ class ReaController(
                 )
             }
         } finally {
-            withContext(Dispatchers.IO) { stage.deleteRecursively() }
+            withContext(NonCancellable + Dispatchers.IO) { stage.deleteRecursively() }
         }
     }
 
@@ -191,7 +192,7 @@ class ReaController(
 
     /** Writes `.rea/<name>.report.md` in the project and loads its text. */
     fun report(project: Project, path: String) = launchTask(R.string.rea_reporting) {
-        val response = runInProject(project, "rea report ${ChrootRunner.quote(path)} --json")
+        val response = runInProject(project, "rea report ${ChrootRunner.quote(if (path.startsWith("-")) "./$path" else path)} --json")
         val written = response?.takeIf { it.ok }?.data?.optString("path").orEmpty()
         val text = if (written.isNotEmpty()) withContext(Dispatchers.IO) { readProjectFile(project, written) } else null
         mutable.update {
@@ -201,8 +202,15 @@ class ReaController(
         if (text != null) onProjectChanged(project.id)
     }
 
+    /** Sub-roots live per WorkspaceCheckpoints instance, so a fresh one must be told the project's rootPath. */
+    private fun projectWorkspace(project: Project): File {
+        val checkpoints = WorkspaceCheckpoints(appContext.filesDir, appContext)
+        checkpoints.configureProjectRoot(project.id, project.rootPath)
+        return checkpoints.ensureWorkspace(project.id)
+    }
+
     private suspend fun runInProject(project: Project, command: String): ReaResponse? {
-        val workspace = WorkspaceCheckpoints(appContext.filesDir, appContext).ensureWorkspace(project.id)
+        val workspace = projectWorkspace(project)
         val result = runner.run(workspaceDir = workspace, slug = project.slug, command = command, timeoutMillis = 3 * 60_000L)
         val response = ReaJson.parse(result.output)
         if (response == null) appendLog(result.output)
@@ -210,7 +218,7 @@ class ReaController(
     }
 
     private fun readProjectFile(project: Project, relative: String): String? = runCatching {
-        val workspace = WorkspaceCheckpoints(appContext.filesDir, appContext).ensureWorkspace(project.id).canonicalFile
+        val workspace = projectWorkspace(project).canonicalFile
         val file = File(workspace, relative).canonicalFile
         // The report path comes from the command's output: never read outside the project folder.
         if (!file.path.startsWith(workspace.path + File.separator)) null else file.takeIf { it.isFile }?.readText()
@@ -263,11 +271,12 @@ class ReaController(
 
     // --- Learn mode: `rea learn ...` runs in the tool workspace; progress lives in /root/.rea/progress.json ----------------
 
-    private suspend fun learn(args: String): ReaResponse? {
+    /** [positional] (user text) goes after `--` so a leading `-` is never parsed as an option. */
+    private suspend fun learn(args: String, positional: String? = null): ReaResponse? {
         val result = runner.run(
             workspaceDir = runner.toolWorkspace(TOOL_SLUG),
             slug = TOOL_SLUG,
-            command = "rea learn $args --json",
+            command = "rea learn $args --json" + positional?.let { " -- ${ChrootRunner.quote(it)}" }.orEmpty(),
             timeoutMillis = 3 * 60_000L,
         )
         val response = ReaJson.parse(result.output)
@@ -307,7 +316,7 @@ class ReaController(
     }
 
     fun checkAnswer(n: Int, answer: String) = launchTask(R.string.rea_checking_answer) {
-        val response = learn("check $n ${ChrootRunner.quote(answer.trim())}")
+        val response = learn("check $n", positional = answer.trim())
         val result = response?.takeIf { it.ok }?.checkResult()
         mutable.update { it.copy(checkResult = result, message = if (result != null) null else failureMessage(response)) }
         if (result != null) {
@@ -422,7 +431,8 @@ class ReaController(
                 if (interesting) add("--interesting")
             }
             if (symbol != null) {
-                add(if (symbol.isBlank()) "--disasm" else "--disasm ${ChrootRunner.quote(symbol)}")
+                // `--disasm=-x` keeps a symbol that starts with `-` from being parsed as another option.
+                add(if (symbol.isBlank()) "--disasm" else if (symbol.startsWith("-")) "--disasm=${ChrootRunner.quote(symbol)}" else "--disasm ${ChrootRunner.quote(symbol)}")
                 add("--count 80")
             }
         }.joinToString(" ")

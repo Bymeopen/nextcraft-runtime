@@ -16,24 +16,30 @@ object BatteryOptimization {
     fun isUnrestricted(context: Context): Boolean =
         context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
 
-    /**
-     * The system dialog that asks the user to exempt this app. Some ROMs do not ship it, so when it cannot be
-     * resolved the general battery-optimization list is opened instead.
-     */
-    fun requestIntent(context: Context): Intent {
-        val request = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri())
-        return if (request.resolveActivity(context.packageManager) != null) {
-            request
-        } else {
-            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-        }
-    }
+    /** The system dialog that asks the user to exempt this app (not resolvable on API 30+ without a manifest <queries>). */
+    fun requestIntent(context: Context): Intent =
+        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri())
 
-    /** Returns false when no settings screen exists at all (rare); the caller can fall back to a hint. */
+    /**
+     * Tries the dialog first: resolveActivity says null on API 30+ without a <queries> entry even when it exists, so the
+     * start itself decides. Some ROMs lack it (or refuse it), then the general battery-optimization list is opened.
+     * Returns false when no settings screen exists at all (rare); the caller can fall back to a hint.
+     */
     fun launch(context: Context, starter: (Intent) -> Unit): Boolean = try {
         starter(requestIntent(context))
         true
     } catch (_: ActivityNotFoundException) {
+        launchSettingsList(starter)
+    } catch (_: SecurityException) {
+        launchSettingsList(starter)
+    }
+
+    private fun launchSettingsList(starter: (Intent) -> Unit): Boolean = try {
+        starter(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
         false
     }
 }

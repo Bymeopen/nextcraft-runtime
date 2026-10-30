@@ -444,7 +444,8 @@ class AntigravityRuntimeBridge(
                     runCatching { proc.destroy() }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
                     runCatching { if (proc.isAlive) proc.destroyForcibly() }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
                     runCatching { logOut.delete() }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
-                    runCatching { scratchDir.deleteRecursively() }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
+                    // Empty it but keep the dir: chroot-exec bind-mounts the workspace dir once and keeps the mount (see ClaudeRuntimeBridge.hello).
+                    runCatching { scratchDir.listFiles()?.forEach { it.deleteRecursivelyNoFollowOrRoot() } }.onFailure { ErrorLog.swallowed("AntigravityRuntimeBridge", it) }
                 }
             }
         } catch (_: TimeoutCancellationException) {

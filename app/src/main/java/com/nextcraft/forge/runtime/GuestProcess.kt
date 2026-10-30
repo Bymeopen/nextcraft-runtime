@@ -24,8 +24,11 @@ internal object GuestProcess {
     fun signal(pidFile: File?, signal: Int, forceAfterSeconds: Int? = null) {
         val pid = pidFile?.takeIf { it.isFile }?.let { runCatching { it.readText().trim().toInt() }.getOrNull() } ?: return
         if (pid <= 1) return
-        val force = forceAfterSeconds?.let { "; sleep $it; kill -0 $pid 2>/dev/null && kill -s KILL $pid" }.orEmpty()
-        val cmd = "kill -s $signal $pid 2>/dev/null$force; true"
+        // The KILL only goes out when /proc/<pid>/stat still shows the start time seen before the grace period, so a
+        // recycled pid (another process) is never hit. Field 20 after the ") " that ends the comm is starttime.
+        val start = "sed 's/.*) //' /proc/$pid/stat 2>/dev/null | cut -d' ' -f20"
+        val force = forceAfterSeconds?.let { "; sleep $it; [ -n \"\$s0\" ] && [ \"\$($start)\" = \"\$s0\" ] && kill -s KILL $pid" }.orEmpty()
+        val cmd = (if (forceAfterSeconds != null) "s0=\$($start); " else "") + "kill -s $signal $pid 2>/dev/null$force; true"
         val argv = listOf("su", "-c", cmd)
         Thread({
             runCatching {

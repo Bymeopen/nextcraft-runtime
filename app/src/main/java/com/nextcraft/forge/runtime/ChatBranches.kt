@@ -184,10 +184,16 @@ class ChatBranches(context: Context) {
         parseMergeResult(result.output, result.ok)
     }
 
-    suspend fun discard(project: Project, chatId: String, onWaitingForLock: (() -> Unit)? = null) = withContext(Dispatchers.IO) {
+    suspend fun discard(
+        project: Project,
+        chatId: String,
+        onWaitingForLock: (() -> Unit)? = null,
+    ): RepoOpResult = withContext(Dispatchers.IO) {
         val branch = branchFor(project, chatId)
-        git(project, chatId, DISCARD_SCRIPT, onWaitingForLock = onWaitingForLock)
-        WorkspaceCheckpoints.clearWorkspaceOverride(branch.pseudoProjectId)
+        val result = parseRepoOp(git(project, chatId, DISCARD_SCRIPT, onWaitingForLock = onWaitingForLock))
+        // On a timeout or failure the clone is still there: keep the override so the branch stays usable and retryable.
+        if (result is RepoOpResult.Done) WorkspaceCheckpoints.clearWorkspaceOverride(branch.pseudoProjectId)
+        result
     }
 
     private suspend fun gitProject(
@@ -598,8 +604,10 @@ class ChatBranches(context: Context) {
             G add -A
             if ! G diff --cached --quiet; then G commit -q -m "Forge: save work before update"; fi
             G fetch -q "§M" HEAD
-            G tag -f forge-base FETCH_HEAD >/dev/null
             if G merge --no-edit FETCH_HEAD >/dev/null 2>&1; then
+              # Only move the base once the merge succeeded; a conflict leaves it for STATUS_SCRIPT/COMMIT_SCRIPT to move
+              # after the resolution, and an aborted merge must not hide the divergence.
+              G tag -f forge-base FETCH_HEAD >/dev/null
               echo RESULT=updated
             else
               FILES="§(G diff --name-only --diff-filter=U | tr '\n' ',')"
@@ -618,6 +626,8 @@ class ChatBranches(context: Context) {
             rm -rf "§C"
             cd "§M"
             G update-ref -d "refs/forge/chat-§FORGE_ID" >/dev/null 2>&1 || true
+            # The clone must really be gone, or the next ensure() would skip cloning and reuse the stale one.
+            if [ -e "§C" ]; then echo "msg=could not remove the chat branch folder"; else echo RESULT=ok; fi
         """)
     }
 }

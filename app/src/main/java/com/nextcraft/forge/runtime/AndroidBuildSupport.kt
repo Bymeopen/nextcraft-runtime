@@ -151,7 +151,17 @@ data class AndroidBuildRecord(
 
 private val GRADLE_TASK_TOKEN_PATTERN = Regex("^[A-Za-z0-9_.:-]+(\\s+[A-Za-z0-9_.:-]+)*$")
 private val SETTINGS_SCRIPT_NAMES = setOf("settings.gradle", "settings.gradle.kts", "settings.gradle.dcl")
-private val IGNORED_BUILD_DIRS = setOf("build", ".gradle", ".idea", ".git")
+private val IGNORED_BUILD_DIRS = setOf(".gradle", ".idea", ".git")
+
+/**
+ * A Gradle output folder: a `build` directory that is a module's own (next to its build script) or that holds Gradle's
+ * outputs/intermediates. A source package named `build` (src/main/kotlin/com/x/build) is project input, not output.
+ */
+private fun isGradleOutputDir(dir: File): Boolean =
+    dir.name == "build" && (
+        File(dir, "outputs").isDirectory || File(dir, "intermediates").isDirectory ||
+            File(dir.parentFile, "build.gradle.kts").isFile || File(dir.parentFile, "build.gradle").isFile
+        )
 private val SOURCE_INPUT_EXTS = setOf("kt", "java", "xml", "gradle", "kts", "properties", "toml", "pro", "json", "jar", "aar")
 private val COMPILER_DIAGNOSTIC_PATTERN = Regex(
     "(?m)^(.+?\\.(?:kt|java|xml|gradle|kts)):(\\d+)(?::(\\d+))?[: ]+(?:error: )?(.+)$",
@@ -214,13 +224,18 @@ internal fun findDebugApk(projectRoot: File): File? {
             f.isFile &&
                 !Files.isSymbolicLink(f.toPath()) &&
                 f.name == "output-metadata.json" &&
-                "/outputs/apk/" in f.invariantSeparatorsPath
+                "/outputs/apk/" in f.invariantSeparatorsPath &&
+                // Only a debug variant folder (debug, freeDebug); never release/unsigned output or the androidTest APK.
+                f.parentFile?.name?.endsWith("debug", ignoreCase = true) == true &&
+                "/outputs/apk/androidTest/" !in f.invariantSeparatorsPath
         }
         .maxByOrNull { it.lastModified() }
 
     if (newestMetadata != null) {
         val fromMeta = runCatching {
             val rootJson = JSONObject(newestMetadata.readText())
+            val variant = rootJson.optString("variantName")
+            if (variant.isNotBlank() && !variant.endsWith("debug", ignoreCase = true)) return@runCatching null
             val elementsArr = rootJson.optJSONArray("elements") ?: return@runCatching null
             for (i in 0 until elementsArr.length()) {
                 val relOut = elementsArr.optJSONObject(i)?.stringOrEmpty("outputFile").orEmpty()
@@ -259,7 +274,8 @@ internal fun findReusableDebugApk(projectRoot: File): File? {
 
     val anySourceNewer = projectRoot.walkTopDown()
         .onEnter { dir ->
-            dir == projectRoot || (dir.name !in IGNORED_BUILD_DIRS && isConfinedDirectory(dir, rootBoundary))
+            dir == projectRoot ||
+                (dir.name !in IGNORED_BUILD_DIRS && !isGradleOutputDir(dir) && isConfinedDirectory(dir, rootBoundary))
         }
         .any { f ->
             if (!f.isFile || Files.isSymbolicLink(f.toPath()) || f.lastModified() <= apkMtime) {
@@ -273,6 +289,7 @@ internal fun findReusableDebugApk(projectRoot: File): File? {
                     f.name == "gradlew.bat"
             }
         }
+    // Not detected: a deleted source file leaves no newer mtime behind, so the APK is still reused after a deletion.
     return if (anySourceNewer) null else builtApk
 }
 

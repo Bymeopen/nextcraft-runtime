@@ -94,7 +94,7 @@ class WorkspaceCheckpoints(
                 .onEnter { dir ->
                     val rel = if (dir == workspace) "" else dir.relativeTo(workspace).invariantSeparatorsPath
                     dir == workspace || (
-                        !isInternalRuntimePath(rel) &&
+                        !isInternalRuntimeDir(rel) &&
                             !Files.isSymbolicLink(dir.toPath()) &&
                             runCatching { dir.canonicalFile.toPath().startsWith(canonicalWs) }.getOrDefault(false)
                         )
@@ -608,7 +608,7 @@ class WorkspaceCheckpoints(
             .onEnter { dir ->
                 val rel = if (dir == root) "" else dir.relativeTo(root).invariantSeparatorsPath
                 dir == root || (
-                    !isInternalRuntimePath(rel) &&
+                    !isInternalRuntimeDir(rel) &&
                         !Files.isSymbolicLink(dir.toPath()) &&
                         runCatching { dir.canonicalFile.toPath().startsWith(rootBoundary) }.getOrDefault(false)
                     )
@@ -636,13 +636,21 @@ class WorkspaceCheckpoints(
         return allPaths.filter { p -> before[p] != current[p] }.sorted()
     }
 
-    fun isInternalRuntimePath(path: String): Boolean {
+    /** [path] names a file: its last segment is a file name, so a script called `build` is still tracked. */
+    fun isInternalRuntimePath(path: String): Boolean = isInternalRuntimePath(path, lastIsDirectory = false)
+
+    /** [path] names a directory (walk pruning): `build`/`dist`/`target` are output folders. */
+    private fun isInternalRuntimeDir(path: String): Boolean = isInternalRuntimePath(path, lastIsDirectory = true)
+
+    private fun isInternalRuntimePath(path: String, lastIsDirectory: Boolean): Boolean {
         val clean = path.replace('\\', '/')
         if (clean == ".claude.json") return true
         var underSrcDir = false
-        for (part in clean.split('/')) {
+        val parts = clean.split('/')
+        for ((index, part) in parts.withIndex()) {
             if (part in EXCLUDED_DIR_NAMES) return true
-            if (part in ARTIFACT_DIR_NAMES && !underSrcDir) return true
+            val isDirectory = lastIsDirectory || index < parts.lastIndex
+            if (isDirectory && part in ARTIFACT_DIR_NAMES && !underSrcDir) return true
             if (part == "src") underSrcDir = true
         }
         return false

@@ -35,7 +35,12 @@ internal object FileBrowser {
         val direct = canonical.listFiles()
         if (direct != null) return BrowserListing.Entries(sorted(direct.map(::entryOf)), viaRoot = false)
         if (!canonical.exists()) return BrowserListing.Denied(BrowserDenial.MISSING)
-        val output = runRoot("ls -lA -- ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)
+        // The app's canonicalFile cannot see through root-only directories: resolve again as root, re-check, then list
+        // the resolved path so a symlink planted there cannot lead outside the app data.
+        val resolved = runRoot("readlink -f -- ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)?.trim()
+            ?: return BrowserListing.Denied(BrowserDenial.NO_ACCESS)
+        if (resolved.isEmpty() || !RootPathGuard.isInsideAppData(resolved)) return BrowserListing.Denied(BrowserDenial.OUTSIDE_APP_DATA)
+        val output = runRoot("ls -lA -- ${shellSingleQuote(resolved)}")?.toString(Charsets.UTF_8)
             ?: return BrowserListing.Denied(BrowserDenial.NO_ACCESS)
         return BrowserListing.Entries(sorted(parseLsLong(output)), viaRoot = true)
     }
@@ -52,9 +57,9 @@ internal object FileBrowser {
         val resolved = runRoot("readlink -f -- ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)?.trim()
             ?: return null
         if (resolved.isEmpty() || !RootPathGuard.isInsideAppData(resolved)) return null
-        val total = runRoot("wc -c < ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)?.trim()?.toLongOrNull()
+        val total = runRoot("wc -c < ${shellSingleQuote(resolved)}")?.toString(Charsets.UTF_8)?.trim()?.toLongOrNull()
         if (total != null && total > maxBytes) return null
-        return runRoot("head -c $maxBytes -- ${shellSingleQuote(canonical.path)}")
+        return runRoot("head -c $maxBytes -- ${shellSingleQuote(resolved)}")
     }
 
     fun read(file: File, maxBytes: Int = 256 * 1024): BrowserRead {
@@ -73,8 +78,8 @@ internal object FileBrowser {
             val resolved = runRoot("readlink -f -- ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)?.trim()
                 ?: return BrowserRead.Denied(BrowserDenial.NO_ACCESS)
             if (resolved.isEmpty() || !RootPathGuard.isInsideAppData(resolved)) return BrowserRead.Denied(BrowserDenial.OUTSIDE_APP_DATA)
-            val head = runRoot("head -c $maxBytes -- ${shellSingleQuote(canonical.path)}") ?: return BrowserRead.Denied(BrowserDenial.NO_ACCESS)
-            val total = runRoot("wc -c < ${shellSingleQuote(canonical.path)}")?.toString(Charsets.UTF_8)?.trim()?.toLongOrNull()
+            val head = runRoot("head -c $maxBytes -- ${shellSingleQuote(resolved)}") ?: return BrowserRead.Denied(BrowserDenial.NO_ACCESS)
+            val total = runRoot("wc -c < ${shellSingleQuote(resolved)}")?.toString(Charsets.UTF_8)?.trim()?.toLongOrNull()
             bytes = head
             size = total ?: head.size.toLong()
         }

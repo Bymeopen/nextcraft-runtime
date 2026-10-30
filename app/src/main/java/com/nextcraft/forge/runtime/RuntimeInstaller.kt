@@ -170,6 +170,7 @@ class RuntimeInstaller(internal val context: Context) {
 
         val staging = File(runtimeDir, "ubuntu.installing")
         val repairBackup = File(runtimeDir, "ubuntu.repair-backup")
+        RootfsRepair.clearStaleMaintenanceMarker(rootfs)
         RootfsRepair.reconcileInterruptedSwap(
             rootfs = rootfs,
             staging = staging,

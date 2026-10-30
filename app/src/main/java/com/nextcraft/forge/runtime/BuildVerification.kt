@@ -75,8 +75,9 @@ object BuildVerification {
     private const val LOG_TAIL_LINES = 60
 
     private val OOM_MARKERS = listOf(
-        "OutOfMemoryError", "Java heap space", "GC overhead limit exceeded", "Metaspace",
-        "Gradle build daemon disappeared unexpectedly", "daemon disappeared", "exit value 137", "Killed",
+        // Real JVM / Gradle / kernel OOM-killer messages only: a bare "Killed" or "Metaspace" also appears in ordinary logs.
+        "OutOfMemoryError", "Java heap space", "GC overhead limit exceeded", "OutOfMemoryError: Metaspace",
+        "Gradle build daemon disappeared unexpectedly", "exit value 137", "Out of memory: Killed process",
     )
     private val DEPENDENCY_MARKERS = listOf(
         "Could not resolve", "Could not download", "No cached version of", "Plugin [id:", "was not found in any of the following sources",

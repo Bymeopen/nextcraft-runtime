@@ -35,11 +35,12 @@ internal fun RuntimeInstaller.openZstdInputStream(
     } catch (_: Throwable) {
         runCatching { rawStream.close() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeInstaller", it) }
         val process = runCatching {
-            ProcessBuilder("zstd", "-d", "-c", archive.absolutePath).start()
+            // stderr is never read: an undrained pipe would block zstd on a chatty warning. (Redirect.DISCARD needs API 33.)
+            ProcessBuilder("zstd", "-d", "-c", archive.absolutePath).redirectError(java.io.File("/dev/null")).start()
         }.getOrElse {
             val escapedPath = archive.absolutePath.replace("'", "'\"'\"'")
             val pathExport = "export PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/data/adb/magisk:/data/adb/ksu/bin:/data/adb/ap/bin:${'$'}PATH; "
-            ProcessBuilder("su", "-c", "${pathExport}zstd -d -c '$escapedPath'").start()
+            ProcessBuilder("su", "-c", "${pathExport}zstd -d -c '$escapedPath' 2>/dev/null").start()
         }
         object : java.io.FilterInputStream(BufferedInputStream(process.inputStream)) {
             internal var reachedEof = false

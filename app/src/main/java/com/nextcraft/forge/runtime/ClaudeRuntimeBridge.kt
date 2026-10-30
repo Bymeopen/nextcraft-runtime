@@ -394,7 +394,7 @@ class ClaudeRuntimeBridge(
             runCatching { process.destroy() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
             runCatching { if (process.isAlive) process.destroyForcibly() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
             runCatching { outputFile.delete() }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
-            runCatching { probeDir.listFiles()?.forEach { it.deleteRecursively() } }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
+            runCatching { probeDir.listFiles()?.forEach { it.deleteRecursivelyNoFollowOrRoot() } }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("ClaudeRuntimeBridge", it) }
             Log.d("ClaudeBridge", "Connection test took ${android.os.SystemClock.elapsedRealtime() - startedAt} ms")
         }
     }

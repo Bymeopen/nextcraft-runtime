@@ -167,6 +167,14 @@ internal object RootfsRepair {
         }
     }
 
+    /**
+     * The marker is only removed in a `finally`, so a process killed mid repair/delete leaves it behind and every launch
+     * exits 75. The app is a single process: with no maintenance running here, any marker on disk is stale.
+     */
+    fun clearStaleMaintenanceMarker(runtimeChild: File) {
+        if (maintenanceDepth.get() == 0) runCatching { maintenanceMarker(runtimeChild).delete() }
+    }
+
     const val MAINTENANCE_MARKER = ".rootfs-maintenance"
 
     fun safeDeleteRecursively(targetDir: File): Boolean = underMaintenance(targetDir) { safeDeleteLocked(targetDir) }

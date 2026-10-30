@@ -83,4 +83,29 @@ class BashClassifierTest {
         assertEquals(RiskLevel.HIGH, risk("cp a.txt --target-directory=~/bin"))
         assertEquals(RiskLevel.REVIEW, risk("cp a.txt --target-directory=/workspace/p/out"))
     }
+
+    @Test
+    fun cdOutOfTheProjectAndEscapedStringsAreNotAutoApproved() {
+        assertEquals(RiskLevel.HIGH, risk("cd / && cat proc/self/environ"))
+        assertEquals(RiskLevel.HIGH, risk("cd /root && cat .config/gh/hosts.yml"))
+        assertEquals(RiskLevel.HIGH, risk("cat \$'\\x2fproc\\x2fself\\x2fenviron'"))
+        assertEquals(RiskLevel.REVIEW, risk("cd /workspace/p/app && ls"))
+        assertEquals(RiskLevel.REVIEW, risk("cd src && cat a.txt"))
+    }
+
+    @Test
+    fun redirectToALookalikeOfDevNullIsNotStripped() {
+        assertEquals(RiskLevel.HIGH, risk("echo x >/dev/nullfoo"))
+        assertEquals(RiskLevel.REVIEW, risk("echo x >/dev/null 2>&1"))
+    }
+
+    @Test
+    fun gitFormsThatDiscardWorkAreNotAutoApproved() {
+        assertEquals(RiskLevel.HIGH, risk("git restore a.txt"))
+        assertEquals(RiskLevel.HIGH, risk("git switch -f main"))
+        assertEquals(RiskLevel.HIGH, risk("git stash drop"))
+        assertEquals(RiskLevel.HIGH, risk("git stash -u"))
+        assertEquals(RiskLevel.REVIEW, risk("git restore --staged a.txt"))
+        assertEquals(RiskLevel.REVIEW, risk("git stash"))
+    }
 }

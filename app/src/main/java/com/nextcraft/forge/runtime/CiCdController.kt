@@ -78,10 +78,14 @@ class CiCdController(
                     if (token.isBlank()) throw UiTextException(UiText.res(R.string.rt_cicd_connect_github))
                     val (owner, repo) = githubRepositoryOf(workspaceFor(project.id))
                         ?: error("This project has no GitHub remote. Push it to GitHub or clone a GitHub repository.")
-                    val prs = runCatching { client.pullRequests(token, owner, repo) }.getOrDefault(emptyList())
-                    val wfs = runCatching { client.workflows(token, owner, repo) }.getOrDefault(emptyList())
-                    val rns = runCatching { client.workflowRuns(token, owner, repo) }.getOrDefault(emptyList())
-                    listOf("$owner/$repo", wfs, rns, prs)
+                    val prs = runCatching { client.pullRequests(token, owner, repo) }
+                    val wfs = runCatching { client.workflows(token, owner, repo) }
+                    val rns = runCatching { client.workflowRuns(token, owner, repo) }
+                    val failure = prs.exceptionOrNull() ?: wfs.exceptionOrNull() ?: rns.exceptionOrNull()
+                    // Every call failed (bad token, rate limit, no network): report it instead of showing empty lists.
+                    if (prs.isFailure && wfs.isFailure && rns.isFailure && failure != null) throw failure
+                    // Otherwise keep the partial data and carry the first failure along to show next to it.
+                    listOf("$owner/$repo", wfs.getOrDefault(emptyList()), rns.getOrDefault(emptyList()), prs.getOrDefault(emptyList()), failure)
                 }
             }
             if (lastProjectId != project.id) return@launch
@@ -95,6 +99,7 @@ class CiCdController(
                             runs = tuple[2] as List<GitHubWorkflowRun>,
                             pullRequests = tuple[3] as List<GitHubPullRequest>,
                             loading = false,
+                            message = (tuple[4] as Throwable?)?.toUiText(R.string.rt_cicd_load_failed) ?: current.message,
                         )
                     },
                     onFailure = {

@@ -18,6 +18,6 @@ class GradleDaemonReaperTest {
     @Test
     fun scriptOnlyKillsDaemonsWithoutCpuProgress() {
         assertTrue("GradleDaemon" in GradleDaemonReaper.STOP_IDLE_SCRIPT)
-        assertTrue("[ \"\$a\" = \"\$b\" ] && kill" in GradleDaemonReaper.STOP_IDLE_SCRIPT)
+        assertTrue("[ \"\$a\" = \"\$b\" ] && [ -z \"\$(pgrep -P \$p 2>/dev/null)\" ] && kill" in GradleDaemonReaper.STOP_IDLE_SCRIPT)
     }
 }

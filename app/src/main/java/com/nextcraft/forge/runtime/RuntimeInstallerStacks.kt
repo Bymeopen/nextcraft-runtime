@@ -798,7 +798,7 @@ suspend fun RuntimeInstaller.removeNdk(
             onProgress = onProgress,
             failureMessage = "Failed to remove Android NDK",
         )
-    }
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it } // the host-side removal below is the fallback for other errors
     removePath(File(rootfs, AndroidToolchain.NDK_HOST_DIR))
     removePath(File(rootfs, ".nextcraft-ndk-installed"))
     onProgress(RuntimeInstallProgress("Removed Android NDK", 1f))

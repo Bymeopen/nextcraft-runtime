@@ -52,6 +52,18 @@ class BuildVerificationTest {
     }
 
     @Test
+    fun screenshotsTargetIsNotBatched() {
+        val workspace = Files.createTempDirectory("matrix").toFile()
+        java.io.File(workspace, "settings.gradle.kts").writeText("")
+        java.io.File(workspace, "app/src/main").apply { mkdirs() }.resolve("AndroidManifest.xml").writeText("<manifest/>")
+        fun target(id: String) = BuildTarget(id, id, "x", detected = true, enabled = true)
+        val steps = withGradleBatched(workspace, listOf(target("gradle:assembleDebug"), target("gradle:test"), target("gradle:screenshots")))
+        assertEquals(2, steps.size)
+        assertEquals(listOf("gradle:screenshots"), steps[1].ids)
+        workspace.deleteRecursively()
+    }
+
+    @Test
     fun lowMemoryFlagsGoIntoTheCommand() {
         val root = Files.createTempDirectory("gradle").toFile()
         val command = androidGradleCommand(root, BuildVerification.VERIFY_TASKS, BuildVerification.LOW_MEMORY_FLAGS)

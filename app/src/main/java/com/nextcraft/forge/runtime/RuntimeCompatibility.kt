@@ -67,14 +67,21 @@ internal object SuCompat {
                 proc.destroyForcibly()
                 return true
             }
-            runCatching { proc.inputStream.bufferedReader().use { it.readText() } }.onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeCompatibility", it) }
-            proc.exitValue() == 0
+            val output = runCatching { proc.inputStream.bufferedReader().use { it.readText() } }
+                .onFailure { com.nextcraft.forge.runtime.ErrorLog.swallowed("RuntimeCompatibility", it) }
+                .getOrDefault("")
+            val exit = proc.exitValue()
+            // Only exit 0 and an explicit "unknown option" are definitive. Any other failure (denied grant, su busy) is
+            // transient: assume supported for this call but do not cache it, or launches would lose the private mounts.
+            if (exit != 0 && !UNSUPPORTED_FLAG.containsMatchIn(output)) return true
+            exit == 0
         }.getOrElse { return true }
         masterMount = supported
         return supported
     }
 
     private const val PROBE_TIMEOUT_SECONDS = 10L
+    private val UNSUPPORTED_FLAG = Regex("""(invalid|unknown|unrecognized|illegal) option|usage:""", RegexOption.IGNORE_CASE)
 }
 
 /** Facts about the ROM and root manager that explain most "works on one phone, not on another" reports. */
